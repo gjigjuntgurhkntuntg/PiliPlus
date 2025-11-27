@@ -202,6 +202,8 @@ class AudioController extends GetxController
           this.index = index;
           _updateCurrItem(data.list[index]);
           playlist = data.list;
+          // 更新媒体通知列表控制模式
+          _updateListControlMode();
         }
       } else if (isLoadPrev) {
         _prev = data.reachStart ? null : data.paginationReply.prev;
@@ -218,6 +220,17 @@ class AudioController extends GetxController
     } else {
       res.toast();
     }
+  }
+
+  /// 更新媒体通知列表控制模式
+  void _updateListControlMode() {
+    final hasMultiItems = (playlist?.length ?? 0) > 1;
+
+    videoPlayerServiceHandler?.setListControlMode(
+      enabled: hasMultiItems,
+      onNext: hasMultiItems ? () => playNext() : null,
+      onPrevious: hasMultiItems ? () => playPrev() : null,
+    );
   }
 
   Future<bool> _queryPlayUrl() async {
@@ -902,6 +915,7 @@ class AudioController extends GetxController
       ?..onPlay = null
       ..onPause = null
       ..onSeek = null
+      ..setListControlMode(enabled: false)
       ..onVideoDetailDispose(hashCode.toString());
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions = null;
