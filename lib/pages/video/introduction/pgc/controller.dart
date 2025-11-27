@@ -337,8 +337,9 @@ class PgcIntroController extends CommonIntroController {
       queryOnlineTotal();
       queryVideoIntro(episode as EpisodeItem);
       return true;
-    } catch (e) {
+    } catch (e, s) {
       if (kDebugMode) debugPrint('pgc onChangeEpisode: $e');
+      Utils.reportError(e, s, 'PgcIntroController.onChangeEpisode');
       return false;
     }
   }
@@ -375,10 +376,17 @@ class PgcIntroController extends CommonIntroController {
 
   @override
   bool prevPlay() {
-    final episodes = pgcItem.episodes!;
+    final episodes = pgcItem.episodes;
+    if (episodes == null || episodes.isEmpty) {
+      return false;
+    }
     int currentIndex = episodes.indexWhere(
       (e) => e.cid == videoDetailCtr.cid.value,
     );
+    // 如果找不到当前视频在列表中的位置，返回失败
+    if (currentIndex == -1) {
+      return false;
+    }
     int prevIndex = currentIndex - 1;
     PlayRepeat playRepeat = videoDetailCtr.plPlayerController.playRepeat;
     if (prevIndex < 0) {
@@ -396,13 +404,20 @@ class PgcIntroController extends CommonIntroController {
   @override
   bool nextPlay() {
     try {
-      final episodes = pgcItem.episodes!;
+      final episodes = pgcItem.episodes;
+      if (episodes == null || episodes.isEmpty) {
+        return false;
+      }
 
       PlayRepeat playRepeat = videoDetailCtr.plPlayerController.playRepeat;
 
       int currentIndex = episodes.indexWhere(
         (e) => e.cid == videoDetailCtr.cid.value,
       );
+      // 如果找不到当前视频在列表中的位置，返回失败
+      if (currentIndex == -1) {
+        return false;
+      }
       int nextIndex = currentIndex + 1;
       // 列表循环
       if (nextIndex >= episodes.length) {
