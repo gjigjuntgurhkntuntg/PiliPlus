@@ -55,7 +55,8 @@ class _DynamicsPageState extends State<DynamicsPage>
   Widget upPanelPart(ThemeData theme) {
     bool isTop = upPanelPosition == UpPanelPosition.top;
     bool needBg = upPanelPosition.index > 1;
-    return Material(
+
+    Widget panel = Material(
       color: needBg ? theme.colorScheme.surface : null,
       type: needBg ? MaterialType.canvas : MaterialType.transparency,
       child: SizedBox(
@@ -73,6 +74,28 @@ class _DynamicsPageState extends State<DynamicsPage>
         ),
       ),
     );
+
+    // 顶部位置时，添加滚动收起效果
+    if (isTop && _dynamicsController.upPanelStream != null) {
+      return StreamBuilder(
+        stream: _dynamicsController.upPanelStream?.stream.distinct(),
+        initialData: true,
+        builder: (BuildContext context, AsyncSnapshot snapshot) {
+          return AnimatedOpacity(
+            opacity: snapshot.data ? 1 : 0,
+            duration: const Duration(milliseconds: 300),
+            child: AnimatedContainer(
+              curve: Curves.easeInOutCubicEmphasized,
+              duration: const Duration(milliseconds: 500),
+              height: snapshot.data ? 76 : 0,
+              child: panel,
+            ),
+          );
+        },
+      );
+    }
+
+    return panel;
   }
 
   Widget _buildUpPanel(LoadingState<FollowUpModel> upState) {

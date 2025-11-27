@@ -4,6 +4,7 @@ import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/follow.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/dynamic/dynamics_type.dart';
+import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
 import 'package:PiliPlus/models_new/follow/data.dart';
 import 'package:PiliPlus/pages/common/common_controller.dart';
@@ -24,6 +25,9 @@ class DynamicsController extends GetxController
     vsync: this,
     initialIndex: Pref.defaultDynamicType,
   );
+
+  // UP主面板收起控制流（仅在top位置时使用）
+  StreamController<bool>? upPanelStream;
 
   late final RxInt mid = (-1).obs;
   late int currentMid = -1;
@@ -55,6 +59,9 @@ class DynamicsController extends GetxController
   @override
   void onInit() {
     super.onInit();
+    if (upPanelPosition == UpPanelPosition.top) {
+      upPanelStream = StreamController<bool>.broadcast();
+    }
     queryFollowUp();
   }
 
@@ -227,6 +234,7 @@ class DynamicsController extends GetxController
 
   @override
   void onClose() {
+    upPanelStream?.close();
     tabController.dispose();
     scrollController.dispose();
     super.onClose();

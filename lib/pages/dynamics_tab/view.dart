@@ -14,6 +14,7 @@ import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/waterfall.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:waterfall_flow/waterfall_flow.dart'
     hide SliverWaterfallFlowDelegateWithMaxCrossAxisExtent;
@@ -48,10 +49,21 @@ class _DynamicsTabPageState
       _mainController.navigationBars[0] != NavigationBarType.dynamics &&
       _mainController.selectedIndex.value == 0;
 
+  StreamController<bool>? get _upPanelStream => dynamicsController.upPanelStream;
+
   @override
   bool onNotification(UserScrollNotification notification) {
     if (checkPage) {
       return false;
+    }
+    // 同时触发 UP 主面板收起
+    if (notification.metrics.axis == Axis.vertical) {
+      final direction = notification.direction;
+      if (direction == ScrollDirection.forward) {
+        _upPanelStream?.add(true);
+      } else if (direction == ScrollDirection.reverse) {
+        _upPanelStream?.add(false);
+      }
     }
     return super.onNotification(notification);
   }
@@ -60,6 +72,13 @@ class _DynamicsTabPageState
   void listener() {
     if (checkPage) {
       return;
+    }
+    // 同时触发 UP 主面板收起
+    final direction = controller.scrollController.position.userScrollDirection;
+    if (direction == ScrollDirection.reverse) {
+      _upPanelStream?.add(false);
+    } else if (direction == ScrollDirection.forward) {
+      _upPanelStream?.add(true);
     }
     super.listener();
   }
