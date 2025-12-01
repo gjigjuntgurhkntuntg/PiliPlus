@@ -1681,6 +1681,10 @@ class VideoDetailController extends GetxController
     if (isFileSource) {
       cacheLocalProgress();
     }
+    // 取消定时器和流订阅，防止后台耗电
+    cancelSkipTimer();
+    positionSubscription?.cancel();
+    positionSubscription = null;
     introScrollCtr?.dispose();
     introScrollCtr = null;
     tabCtr.dispose();
