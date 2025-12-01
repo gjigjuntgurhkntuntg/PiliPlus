@@ -17,8 +17,8 @@ Future<VideoPlayerServiceHandler> initAudioService() async {
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.taoran.piliplus.audio',
       androidNotificationChannelName: 'Audio Service ${Constants.appName}',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
+      // 暂停时不停止前台服务，防止被系统杀掉后台
+      androidStopForegroundOnPause: false,
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
       androidNotificationChannelDescription: 'Media notification channel',
