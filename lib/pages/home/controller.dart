@@ -32,6 +32,11 @@ class HomeController extends GetxController
   @override
   ScrollController get scrollController => controller.scrollController;
 
+  /// 代理到当前 tab controller 的 showRefreshIndicator
+  @override
+  Future<void> Function()? get showRefreshIndicator =>
+      controller.showRefreshIndicator;
+
   AccountService accountService = Get.find<AccountService>();
 
   @override

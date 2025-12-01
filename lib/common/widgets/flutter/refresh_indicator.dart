@@ -758,10 +758,12 @@ class RefreshIndicatorState extends State<RefreshIndicator>
 }
 
 Widget refreshIndicator({
+  GlobalKey<RefreshIndicatorState>? key,
   required RefreshCallback onRefresh,
   required Widget child,
 }) {
   return RefreshIndicator(
+    key: key,
     displacement: displacement,
     onRefresh: onRefresh,
     child: child,

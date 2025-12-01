@@ -9,21 +9,29 @@ import 'package:get/get.dart';
 mixin ScrollOrRefreshMixin {
   ScrollController get scrollController;
 
+  /// 显示刷新指示器的回调，由 View 层设置
+  Future<void> Function()? showRefreshIndicator;
+
   void animateToTop() => scrollController.animToTop();
 
   Future<void> onRefresh();
 
   void toTopOrRefresh() {
     if (scrollController.hasClients) {
-      if (scrollController.position.pixels == 0) {
-        EasyThrottle.throttle(
-          'topOrRefresh',
-          const Duration(milliseconds: 500),
-          onRefresh,
-        );
-      } else {
-        animateToTop();
-      }
+      EasyThrottle.throttle(
+        'topOrRefresh',
+        const Duration(milliseconds: 500),
+        () {
+          // 无论在哪个位置，都回到顶部并刷新
+          animateToTop();
+          // 显示刷新动画
+          if (showRefreshIndicator != null) {
+            showRefreshIndicator!();
+          } else {
+            onRefresh();
+          }
+        },
+      );
     }
   }
 }

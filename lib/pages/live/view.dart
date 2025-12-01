@@ -49,6 +49,7 @@ class _LivePageState extends CommonPageState<LivePage, LiveController>
         margin: const EdgeInsets.symmetric(horizontal: StyleString.safeSpace),
         decoration: const BoxDecoration(borderRadius: StyleString.mdRadius),
         child: refreshIndicator(
+          key: refreshIndicatorKey,
           onRefresh: controller.onRefresh,
           child: CustomScrollView(
             controller: controller.scrollController,

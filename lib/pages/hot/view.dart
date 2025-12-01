@@ -61,6 +61,7 @@ class _HotPageState extends CommonPageState<HotPage, HotController>
     super.build(context);
     return onBuild(
       refreshIndicator(
+        key: refreshIndicatorKey,
         onRefresh: controller.onRefresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),

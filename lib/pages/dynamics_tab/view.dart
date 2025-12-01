@@ -151,6 +151,7 @@ class _DynamicsTabPageState
     super.build(context);
     return onBuild(
       refreshIndicator(
+        key: refreshIndicatorKey,
         onRefresh: () {
           dynamicsController.queryFollowUp();
           return controller.onRefresh();

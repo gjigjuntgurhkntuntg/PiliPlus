@@ -54,6 +54,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
     final ThemeData theme = Theme.of(context);
     return onBuild(
       refreshIndicator(
+        key: refreshIndicatorKey,
         onRefresh: controller.onRefresh,
         child: CustomScrollView(
           controller: controller.scrollController,

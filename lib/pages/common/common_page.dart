@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart'
+    as custom_refresh;
 import 'package:PiliPlus/pages/common/common_controller.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
@@ -23,6 +25,9 @@ abstract class CommonPageState<
   late final double scrollThreshold = Pref.scrollThreshold; // 滚动阈值
   late final scrollController = controller.scrollController;
 
+  /// 刷新指示器的 Key，用于编程式触发刷新动画
+  final refreshIndicatorKey = GlobalKey<custom_refresh.RefreshIndicatorState>();
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +39,10 @@ abstract class CommonPageState<
         (mainStream != null || searchBarStream != null)) {
       controller.scrollController.addListener(listener);
     }
+    // 设置刷新回调
+    controller.showRefreshIndicator = () {
+      return refreshIndicatorKey.currentState?.show() ?? controller.onRefresh();
+    };
   }
 
   Widget onBuild(Widget child) {
