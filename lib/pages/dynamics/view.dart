@@ -82,19 +82,16 @@ class _DynamicsPageState extends State<DynamicsPage>
         initialData: true,
         builder: (BuildContext context, AsyncSnapshot snapshot) {
           final isVisible = snapshot.data == true;
-          return AnimatedOpacity(
-            opacity: isVisible ? 1 : 0,
-            duration: const Duration(milliseconds: 300),
-            child: SizedBox(
-              height: 76,
-              child: ClipRect(
-                child: AnimatedAlign(
-                  alignment: Alignment.topCenter,
-                  curve: Curves.easeInOutCubicEmphasized,
-                  duration: const Duration(milliseconds: 500),
-                  heightFactor: isVisible ? 1.0 : 0.0,
-                  child: panel,
-                ),
+          return ClipRect(
+            child: AnimatedAlign(
+              alignment: Alignment.topCenter,
+              curve: Curves.easeInOutCubicEmphasized,
+              duration: const Duration(milliseconds: 500),
+              heightFactor: isVisible ? 1.0 : 0.0,
+              child: AnimatedOpacity(
+                opacity: isVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 300),
+                child: panel,
               ),
             ),
           );
