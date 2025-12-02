@@ -150,7 +150,8 @@ class LocalIntroController extends CommonIntroController {
       ..cid.value = entry.cid
       ..args['dirPath'] = entry.entryDirPath
       ..initFileSource(entry, isInit: false)
-      ..playerInit();
+      // 调用 queryVideoUrl() 来获取新视频的空降助手数据（如果有网络）
+      ..queryVideoUrl();
     videoDetail
       ..value.title = entry.showTitle
       ..refresh();

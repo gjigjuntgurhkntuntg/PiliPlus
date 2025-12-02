@@ -1717,6 +1717,16 @@ class VideoDetailController extends GetxController
     vttSubtitlesIndex.value = -1;
     vttSubtitles.clear();
 
+    // sponsor block - 离线文件也需要清除，以便重新获取新视频的空降助手数据
+    if (plPlayerController.enableBlock) {
+      _lastPos = null;
+      positionSubscription?.cancel();
+      positionSubscription = null;
+      videoLabel.value = '';
+      segmentList.clear();
+      segmentProgressList.clear();
+    }
+
     if (!isFileSource) {
       // language
       languages.value = null;
@@ -1730,16 +1740,6 @@ class VideoDetailController extends GetxController
       // view point
       if (plPlayerController.showViewPoints) {
         viewPointList.clear();
-      }
-
-      // sponsor block
-      if (plPlayerController.enableBlock) {
-        _lastPos = null;
-        positionSubscription?.cancel();
-        positionSubscription = null;
-        videoLabel.value = '';
-        segmentList.clear();
-        segmentProgressList.clear();
       }
 
       // interactive video
