@@ -346,7 +346,8 @@ class MyApp extends StatelessWidget {
             loadingBuilder: (msg) => LoadingWidget(msg: msg),
             builder: (context, child) {
                 // Register channel handler once to accept openInMain requests from player window
-                if (!_playerChannelInited) {
+              // Only on desktop platforms where multi-window is supported
+              if (!_playerChannelInited && Utils.isDesktop) {
                   try {
                     const channel = WindowMethodChannel(PlayerWindowManager.channelName);
                     channel.setMethodCallHandler((call) async {

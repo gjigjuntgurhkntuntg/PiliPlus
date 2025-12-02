@@ -10,6 +10,7 @@ import 'package:PiliPlus/services/multi_window/window_controller_extension.dart'
 import 'package:PiliPlus/utils/calc_window_position.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
+import 'package:PiliPlus/utils/utils.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flex_seed_scheme/flex_seed_scheme.dart';
@@ -40,7 +41,10 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   void initState() {
     super.initState();
     _initWindow();
-    _setupWindowChannel();
+    // Only setup window channel on desktop platforms
+    if (Utils.isDesktop) {
+      _setupWindowChannel();
+    }
   }
 
   Future<void> _initWindow() async {

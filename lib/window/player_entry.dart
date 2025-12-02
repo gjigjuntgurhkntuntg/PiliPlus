@@ -81,8 +81,11 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     PlayerWindowService.isPlayerWindow = true;
     _parseSettings();
     _initWindow();
-    _setupWindowMethodHandler();
-    _setupPlayerChannel();
+    // Only setup window channels on desktop platforms
+    if (Utils.isDesktop) {
+      _setupWindowMethodHandler();
+      _setupPlayerChannel();
+    }
     // Navigate to initial video if args provided
     _navigateToInitialVideo();
   }
