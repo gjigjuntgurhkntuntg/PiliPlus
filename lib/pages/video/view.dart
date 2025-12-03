@@ -368,6 +368,15 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     WidgetsBinding.instance.removeObserver(this);
     if (Utils.isMobile) {
       showStatusBar();
+      // 如果未开启后台继续播放，退出播放时清理媒体服务并停止 AudioService，防止媒体卡片残留
+      final continueBg = videoDetailController
+          .plPlayerController
+          .continuePlayInBackground
+          .value;
+      if (!continueBg) {
+        videoPlayerServiceHandler?.clear();
+        videoPlayerServiceHandler?.stop();
+      }
     }
     super.dispose();
   }
