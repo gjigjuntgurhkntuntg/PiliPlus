@@ -4,8 +4,36 @@ import 'package:window_manager/window_manager.dart';
 
 /// WindowController 扩展，用于窗口间通信
 extension WindowControllerExtension on WindowController {
-  /// 初始化窗口方法处理器
+  /// 初始化窗口方法处理器（用于子窗口）
   Future<void> doCustomInitialize() async {
+    return await setWindowMethodHandler((call) async {
+      switch (call.method) {
+        case 'window_center':
+          return await windowManager.center();
+        case 'window_close':
+          return await windowManager.close();
+        case 'window_show':
+          return await windowManager.show();
+        case 'window_focus':
+          return await windowManager.focus();
+        case 'window_hide':
+          return await windowManager.hide();
+        case 'window_minimize':
+          return await windowManager.minimize();
+        case 'window_maximize':
+          return await windowManager.maximize();
+        case 'window_restore':
+          return await windowManager.restore();
+        default:
+          throw MissingPluginException(
+            'Not implemented method: ${call.method}',
+          );
+      }
+    });
+  }
+
+  /// 初始化主窗口方法处理器
+  Future<void> initMainWindowHandler() async {
     return await setWindowMethodHandler((call) async {
       switch (call.method) {
         case 'window_center':

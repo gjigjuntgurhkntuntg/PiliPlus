@@ -35,6 +35,7 @@ import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
+import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
@@ -2538,6 +2539,8 @@ class HeaderControlState extends State<HeaderControl>
                         !horizontalScreen &&
                         !isPortrait) {
                       verticalScreenForTwoSeconds();
+                    } else if (PlayerWindowService.isPlayerWindow) {
+                      PlayerWindowService.showMainWindow();
                     } else {
                       Get.back();
                     }
@@ -2545,7 +2548,8 @@ class HeaderControlState extends State<HeaderControl>
                 ),
               ),
               if (!plPlayerController.isDesktopPip &&
-                  (!isFullScreen || !isPortrait))
+                  (!isFullScreen || !isPortrait) &&
+                  !PlayerWindowService.isPlayerWindow)
                 SizedBox(
                   width: 42,
                   height: 34,

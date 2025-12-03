@@ -45,6 +45,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/plugin/pl_player/view.dart';
+import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/services/shutdown_timer_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -705,9 +706,18 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                                                     .colorScheme
                                                     .onSurface,
                                               ),
-                                              onPressed: Get.back,
+                                              onPressed: () {
+                                                if (PlayerWindowService
+                                                    .isPlayerWindow) {
+                                                  PlayerWindowService.showMainWindow();
+                                                } else {
+                                                  Get.back();
+                                                }
+                                              },
                                             ),
                                           ),
+                                          if (!PlayerWindowService
+                                              .isPlayerWindow)
                                           SizedBox(
                                             width: 42,
                                             height: 34,
@@ -1240,33 +1250,40 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                           ),
                         ],
                       ),
-                      onPressed: Get.back,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 42,
-                    height: 34,
-                    child: IconButton(
-                      tooltip: '返回主页',
-                      icon: const Icon(
-                        FontAwesomeIcons.house,
-                        size: 15,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 1.5,
-                            color: Colors.black,
-                          ),
-                        ],
-                      ),
                       onPressed: () {
-                        videoDetailController.plPlayerController
-                          ..isCloseAll = true
-                          ..dispose();
-                        Get.until((route) => route.isFirst);
+                        if (PlayerWindowService.isPlayerWindow) {
+                          PlayerWindowService.showMainWindow();
+                        } else {
+                          Get.back();
+                        }
                       },
                     ),
                   ),
+                  if (!PlayerWindowService.isPlayerWindow)
+                    SizedBox(
+                      width: 42,
+                      height: 34,
+                      child: IconButton(
+                        tooltip: '返回主页',
+                        icon: const Icon(
+                          FontAwesomeIcons.house,
+                          size: 15,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 1.5,
+                              color: Colors.black,
+                            ),
+                          ],
+                        ),
+                        onPressed: () {
+                          videoDetailController.plPlayerController
+                            ..isCloseAll = true
+                            ..dispose();
+                          Get.until((route) => route.isFirst);
+                        },
+                      ),
+                    ),
                 ],
               ),
               actions: [

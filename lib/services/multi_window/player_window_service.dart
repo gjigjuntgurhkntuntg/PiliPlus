@@ -191,4 +191,39 @@ class PlayerWindowService {
   /// 获取保存的播放器窗口位置
   static List<double>? get savedPlayerWindowPosition =>
       Pref.playerWindowPosition;
+
+  /// 查找主窗口
+  static Future<WindowController?> findMainWindow() async {
+    try {
+      final controllers = await WindowController.getAll();
+      for (var controller in controllers) {
+        final args = WindowArguments.fromArguments(controller.arguments);
+        // 主窗口的 businessId 是 'main' 或空
+        if (args.businessId == WindowArguments.businessIdMain ||
+            args.businessId.isEmpty) {
+          return controller;
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('findMainWindow error: $e');
+      }
+    }
+    return null;
+  }
+
+  /// 显示主窗口（从子窗口调用）
+  static Future<void> showMainWindow() async {
+    try {
+      final controller = await findMainWindow();
+      if (controller != null) {
+        await controller.show();
+        await controller.focus();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('showMainWindow error: $e');
+      }
+    }
+  }
 }

@@ -13,6 +13,7 @@ import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/logger.dart';
+import 'package:PiliPlus/services/multi_window/window_controller_extension.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
@@ -193,6 +194,14 @@ void main() async {
     );
   } else if (Utils.isDesktop) {
     await windowManager.ensureInitialized();
+
+    // 初始化主窗口方法处理器，用于接收子窗口消息
+    try {
+      final mainWindowController = await WindowController.fromCurrentEngine();
+      await mainWindowController.initMainWindowHandler();
+    } catch (e) {
+      if (kDebugMode) debugPrint('Init main window handler error: $e');
+    }
 
     WindowOptions windowOptions = WindowOptions(
       minimumSize: const Size(400, 720),
