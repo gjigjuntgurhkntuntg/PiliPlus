@@ -49,8 +49,11 @@ class PlayerWindowManager {
   /// Parse a map to PlayerWindowArguments, collecting unknown fields into extraArguments
   static PlayerWindowArguments _parseMapToArgs(Map<String, dynamic> json) {
     // Collect unknown fields into extraArguments and serialize enums to strings
+    // Returns null if the value cannot be serialized to JSON
     dynamic _serializeValue(dynamic v) {
       if (v == null) return null;
+      // Primitive types are directly serializable
+      if (v is num || v is String || v is bool) return v;
       // Enum -> extract name from toString() (e.g., "SourceType.watchLater" -> "watchLater")
       if (v is Enum) {
         final str = v.toString();
@@ -58,12 +61,22 @@ class PlayerWindowManager {
         return dotIndex >= 0 ? str.substring(dotIndex + 1) : str;
       }
       if (v is Map) {
-        return Map<String, dynamic>.fromEntries(
-          v.entries.map((e) => MapEntry(e.key.toString(), _serializeValue(e.value))),
-        );
+        final result = <String, dynamic>{};
+        for (final e in v.entries) {
+          final serialized = _serializeValue(e.value);
+          if (serialized != null) {
+            result[e.key.toString()] = serialized;
+          }
+        }
+        return result.isNotEmpty ? result : null;
       }
-      if (v is Iterable) return v.map(_serializeValue).toList();
-      return v;
+      if (v is Iterable) {
+        final result = v.map(_serializeValue).where((e) => e != null).toList();
+        return result.isNotEmpty ? result : null;
+      }
+      // Cannot serialize complex objects (like PgcInfoModel), skip them
+      // These objects are not needed in the player window anyway
+      return null;
     }
 
     final extraArgs = <String, dynamic>{};

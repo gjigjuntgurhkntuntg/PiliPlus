@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/custom_toast.dart';
 import 'package:PiliPlus/common/widgets/mouse_back.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
+import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
@@ -105,6 +106,13 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   }
 
   void _navigateToVideo(PlayerWindowArguments args) {
+    // 将字符串 videoType 转换为 VideoType 枚举
+    final videoType = switch (args.videoType) {
+      'pgc' => VideoType.pgc,
+      'pugv' => VideoType.pugv,
+      _ => VideoType.ugc,
+    };
+
     // 导航到视频页面
     Get.offAllNamed(
       '/videoV',
@@ -112,6 +120,7 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
         'aid': args.aid,
         'bvid': args.bvid,
         'cid': args.cid,
+        'videoType': videoType,
         if (args.seasonId != null) 'seasonId': args.seasonId,
         if (args.epId != null) 'epId': args.epId,
         if (args.pgcType != null) 'pgcType': args.pgcType,

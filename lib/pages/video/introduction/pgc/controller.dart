@@ -35,22 +35,25 @@ class PgcIntroController extends CommonIntroController {
   int? seasonId;
   int? epId;
 
-  late final String pgcType = pgcItem.type == 1 || pgcItem.type == 4
+  String get pgcType => pgcItem.type == 1 || pgcItem.type == 4
       ? '追番'
       : '追剧';
 
   late final bool isPgc;
-  late final PgcInfoModel pgcItem;
+  late PgcInfoModel pgcItem;
+
+  // 标记 pgcItem 是否已加载
+  final RxBool pgcItemLoaded = false.obs;
 
   @override
   (Object, int) get getFavRidType => (epId!, 24);
 
   @override
-  StatDetail? getStat() => pgcItem.stat;
+  StatDetail? getStat() => pgcItemLoaded.value ? pgcItem.stat : null;
 
   late final RxBool isFollowed = false.obs;
   late final RxInt followStatus = (-1).obs;
-  late final RxBool isFav = (pgcItem.userStatus?.favored == 1).obs;
+  final RxBool isFav = false.obs;
 
   @override
   void onInit() {
@@ -58,9 +61,45 @@ class PgcIntroController extends CommonIntroController {
     seasonId = args['seasonId'];
     epId = args['epId'];
     isPgc = args['videoType'] == VideoType.pgc;
-    pgcItem = args['pgcItem'];
+
+    final passedPgcItem = args['pgcItem'];
+    if (passedPgcItem != null) {
+      pgcItem = passedPgcItem;
+      pgcItemLoaded.value = true;
+      isFav.value = pgcItem.userStatus?.favored == 1;
+      _onPgcItemReady();
+    } else {
+      // pgcItem 未传递，需要异步加载
+      _loadPgcItem();
+    }
 
     super.onInit();
+  }
+
+  /// 异步加载 pgcItem
+  Future<void> _loadPgcItem() async {
+    try {
+      final result = await SearchHttp.pgcInfo(seasonId: seasonId, epId: epId);
+      if (result.isSuccess) {
+        pgcItem = result.data;
+        pgcItemLoaded.value = true;
+        isFav.value = pgcItem.userStatus?.favored == 1;
+        _onPgcItemReady();
+      } else {
+        result.toast();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('_loadPgcItem error: $e');
+      }
+      SmartDialog.showToast('加载番剧信息失败');
+    }
+  }
+
+  /// pgcItem 准备好后的初始化逻辑
+  void _onPgcItemReady() {
+    // 调用 queryVideoIntro 更新视频详情
+    queryVideoIntro();
 
     if (isPgc) {
       if (isLogin) {
@@ -512,6 +551,9 @@ class PgcIntroController extends CommonIntroController {
 
   @override
   void queryVideoIntro([EpisodeItem? episode]) {
+    // 如果 pgcItem 未加载，跳过（会在 _onPgcItemReady 中再次调用）
+    if (!pgcItemLoaded.value) return;
+
     episode ??= pgcItem.episodes!.firstWhere((e) => e.cid == cid.value);
     videoDetail
       ..value.title = episode.showTitle

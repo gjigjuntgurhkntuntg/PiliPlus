@@ -60,53 +60,68 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final item = introController.pgcItem;
-    final isLandscape = widget.isLandscape;
-    Widget sliver = SliverToBoxAdapter(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 10,
-            children: [
-              _buildCover(theme, isLandscape, item),
-              Expanded(child: _buildInfoPanel(isLandscape, theme, item)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // 点赞收藏转发 布局样式2
-          if (introController.isPgc) actionGrid(theme, item, introController),
-          // 番剧分集
-          if (item.episodes?.isNotEmpty == true)
-            PgcPanel(
-              heroTag: widget.heroTag,
-              pages: item.episodes!,
-              cid: videoDetailCtr.cid.value,
-              onChangeEpisode: introController.onChangeEpisode,
-              showEpisodes: widget.showEpisodes,
-              newEp: item.newEp,
+
+    return Obx(() {
+      if (!introController.pgcItemLoaded.value) {
+        // pgcItem 未加载，显示加载中
+        return const SliverToBoxAdapter(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
             ),
-        ],
-      ),
-    );
-    if (!introController.isPgc) {
-      final breif = _buildBreif(item);
-      if (breif != null) {
-        sliver = SliverMainAxisGroup(
-          slivers: [
-            sliver,
-            breif,
-          ],
+          ),
         );
       }
-    }
-    return SliverPadding(
-      padding:
-          const EdgeInsets.all(StyleString.safeSpace) +
-          const EdgeInsets.only(bottom: 50),
-      sliver: sliver,
-    );
+
+      final item = introController.pgcItem;
+      final isLandscape = widget.isLandscape;
+      Widget sliver = SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 10,
+              children: [
+                _buildCover(theme, isLandscape, item),
+                Expanded(child: _buildInfoPanel(isLandscape, theme, item)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // 点赞收藏转发 布局样式2
+            if (introController.isPgc) actionGrid(theme, item, introController),
+            // 番剧分集
+            if (item.episodes?.isNotEmpty == true)
+              PgcPanel(
+                heroTag: widget.heroTag,
+                pages: item.episodes!,
+                cid: videoDetailCtr.cid.value,
+                onChangeEpisode: introController.onChangeEpisode,
+                showEpisodes: widget.showEpisodes,
+                newEp: item.newEp,
+              ),
+          ],
+        ),
+      );
+      if (!introController.isPgc) {
+        final breif = _buildBreif(item);
+        if (breif != null) {
+          sliver = SliverMainAxisGroup(
+            slivers: [
+              sliver,
+              breif,
+            ],
+          );
+        }
+      }
+      return SliverPadding(
+        padding:
+            const EdgeInsets.all(StyleString.safeSpace) +
+            const EdgeInsets.only(bottom: 50),
+        sliver: sliver,
+      );
+    });
   }
 
   Widget? _buildBreif(PgcInfoModel item) {
