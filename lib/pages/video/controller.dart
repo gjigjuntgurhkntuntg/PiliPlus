@@ -143,8 +143,11 @@ class VideoDetailController extends GetxController
   late String cacheDecode = Pref.defaultDecode; // def avc
   late String cacheSecondDecode = Pref.secondDecode; // def av1
 
+  // 离线视频的网络状态（用于控制是否显示评论区）
+  final RxBool localHasNetwork = false.obs;
+
   bool get showReply => isFileSource
-      ? false
+      ? localHasNetwork.value && plPlayerController.showVideoReply
       : isUgc
       ? plPlayerController.showVideoReply
       : plPlayerController.showBangumiReply;
