@@ -648,6 +648,9 @@ class PlPlayerController {
       dataStatus.status.value = DataStatus.loading;
       // 初始化全屏方向
       _isVertical = isVertical ?? false;
+      debugPrint(
+        '[PlPlayerController] setPlayer: isVertical param=$isVertical, _isVertical=$_isVertical, width=$width, height=$height',
+      );
       _aid = aid;
       _bvid = bvid;
       this.cid = cid;
@@ -1554,6 +1557,9 @@ class PlPlayerController {
     try {
       mode ??= this.mode;
       this.isManualFS = isManualFS;
+      debugPrint(
+        '[PlPlayerController] triggerFullScreen: status=$status, mode=$mode, isVertical=$_isVertical',
+      );
 
       if (status) {
         if (Utils.isMobile) {
@@ -1566,10 +1572,15 @@ class PlPlayerController {
             return;
           }
           late final size = Get.mediaQuery.size;
-          if ((mode == FullScreenMode.vertical ||
+          final shouldVertical =
+              (mode == FullScreenMode.vertical ||
               (mode == FullScreenMode.auto && isVertical) ||
               (mode == FullScreenMode.ratio &&
-                  (isVertical || size.height / size.width < kScreenRatio)))) {
+                  (isVertical || size.height / size.width < kScreenRatio)));
+          debugPrint(
+            '[PlPlayerController] shouldVertical=$shouldVertical (mode=$mode, isVertical=$_isVertical)',
+          );
+          if (shouldVertical) {
             await verticalScreenForTwoSeconds();
           } else {
             await landscape();

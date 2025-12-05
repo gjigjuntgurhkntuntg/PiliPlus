@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:auto_orientation/auto_orientation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 bool _isDesktopFullScreen = false;
@@ -42,8 +43,10 @@ Future<void> landscape() async {
 
 //竖屏
 Future<void> verticalScreenForTwoSeconds() async {
+  debugPrint('[Fullscreen] verticalScreenForTwoSeconds called');
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  await autoScreen();
+  // 注意：不再立即调用 autoScreen()，让屏幕保持竖屏
+  // 用户可以通过退出全屏或其他操作来恢复自动旋转
 }
 
 //全向

@@ -161,6 +161,8 @@ class VideoDetailController extends GetxController
 
   PlayerStatus? playerStatus;
   StreamSubscription<Duration>? positionSubscription;
+  StreamSubscription<int?>? _widthSubscription;
+  StreamSubscription<int?>? _heightSubscription;
 
   late final scrollKey = GlobalKey<ExtendedNestedScrollViewState>();
   late final RxBool isVertical = false.obs;
@@ -274,22 +276,85 @@ class VideoDetailController extends GetxController
       final state = plPlayerController.videoController?.player.state;
       final actualWidth = state?.width;
       final actualHeight = state?.height;
+      debugPrint(
+        '[VideoDetailController] _updateVerticalStateFromPlayer: actualWidth=$actualWidth, actualHeight=$actualHeight',
+      );
+      debugPrint(
+        '[VideoDetailController] firstVideo: width=${firstVideo.width}, height=${firstVideo.height}',
+      );
+      debugPrint(
+        '[VideoDetailController] isVertical.value=${isVertical.value}, plPlayerController.isVertical=${plPlayerController.isVertical}',
+      );
       if (actualWidth != null &&
           actualHeight != null &&
           actualWidth > 0 &&
           actualHeight > 0) {
         final actualIsVertical = actualWidth < actualHeight;
+        debugPrint(
+          '[VideoDetailController] actualIsVertical=$actualIsVertical',
+        );
+        // 更新 VideoDetailController 的状态
         if (actualIsVertical != isVertical.value) {
+          debugPrint(
+            '[VideoDetailController] Updating isVertical from ${isVertical.value} to $actualIsVertical',
+          );
           isVertical.value = actualIsVertical;
-          // 更新播放器的竖屏状态
-          plPlayerController.updateVerticalState(actualIsVertical);
-          // 更新视频高度
+          // 更新视频高度（但不要让它再改变 isVertical）
           setVideoHeight();
+        }
+        // 始终同步更新播放器控制器的竖屏状态（确保全屏方向正确）
+        if (actualIsVertical != plPlayerController.isVertical) {
+          debugPrint(
+            '[VideoDetailController] Syncing plPlayerController.isVertical to $actualIsVertical',
+          );
+          plPlayerController.updateVerticalState(actualIsVertical);
         }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('_updateVerticalStateFromPlayer error: $e');
     }
+  }
+
+  /// 监听视频尺寸变化，用于离线视频检测竖屏状态
+  void _listenVideoSizeForVerticalState() {
+    // 取消之前的订阅
+    _widthSubscription?.cancel();
+    _heightSubscription?.cancel();
+
+    final player = plPlayerController.videoController?.player;
+    if (player == null) {
+      debugPrint(
+        '[VideoDetailController] _listenVideoSizeForVerticalState: player is null',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[VideoDetailController] _listenVideoSizeForVerticalState: setting up listeners',
+    );
+
+    // 监听宽度变化
+    _widthSubscription = player.stream.width.listen((width) {
+      debugPrint('[VideoDetailController] width changed: $width');
+      if (width != null && width > 0) {
+        _updateVerticalStateFromPlayer();
+      }
+    });
+
+    // 监听高度变化
+    _heightSubscription = player.stream.height.listen((height) {
+      debugPrint('[VideoDetailController] height changed: $height');
+      if (height != null && height > 0) {
+        _updateVerticalStateFromPlayer();
+      }
+    });
+  }
+
+  void _cancelVideoSizeSubscriptions() {
+    _widthSubscription?.cancel();
+    _widthSubscription = null;
+    _heightSubscription?.cancel();
+    _heightSubscription = null;
   }
 
   bool imageview = false;
@@ -1221,9 +1286,10 @@ class VideoDetailController extends GetxController
           videoState.value = const Success(null);
         }
         await setSubtitle(vttSubtitlesIndex.value);
-        // 离线视频：检测实际视频尺寸并更新竖屏状态
+        // 离线视频：监听视频尺寸变化来更新竖屏状态
+        // 因为此时视频尺寸可能还未解码完成，所以需要通过流监听
         if (isFileSource) {
-          _updateVerticalStateFromPlayer();
+          _listenVideoSizeForVerticalState();
         }
       },
       width: firstVideo.width,
@@ -1717,6 +1783,7 @@ class VideoDetailController extends GetxController
     cancelSkipTimer();
     positionSubscription?.cancel();
     positionSubscription = null;
+    _cancelVideoSizeSubscriptions();
     introScrollCtr?.dispose();
     introScrollCtr = null;
     tabCtr.dispose();
@@ -1758,6 +1825,9 @@ class VideoDetailController extends GetxController
       segmentList.clear();
       segmentProgressList.clear();
     }
+
+    // 清除视频尺寸监听
+    _cancelVideoSizeSubscriptions();
 
     if (!isFileSource) {
       // language
