@@ -3,7 +3,6 @@ import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/view.dart';
-import 'package:PiliPlus/utils/extension.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
@@ -27,10 +26,8 @@ class BottomControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = ColorScheme.of(context);
-    final primary = colorScheme.isLight
-        ? colorScheme.inversePrimary
-        : colorScheme.primary;
+    // 进度条颜色: RGB(255, 102, 153) - 粉红色，提升可见性
+    const primary = Color(0xFFFF6699);
     final thumbGlowColor = primary.withAlpha(80);
     final bufferedBarColor = primary.withValues(alpha: 0.4);
     void onDragStart(ThumbDragDetails duration) {
@@ -71,9 +68,9 @@ class BottomControl extends StatelessWidget {
           bufferedBarColor: bufferedBarColor,
           thumbColor: primary,
           thumbGlowColor: thumbGlowColor,
-          barHeight: 3.5,
-          thumbRadius: 7,
-          thumbGlowRadius: 25,
+          barHeight: isFullScreen ? 5.0 : 3.5,
+          thumbRadius: isFullScreen ? 9 : 7,
+          thumbGlowRadius: isFullScreen ? 30 : 25,
           onDragStart: onDragStart,
           onDragUpdate: (e) => onDragUpdate(e, max),
           onSeek: (e) => onSeek(e, max),
@@ -106,12 +103,15 @@ class BottomControl extends StatelessWidget {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 5.25,
+                      bottom: isFullScreen ? 6.5 : 5.25,
                       child: IgnorePointer(
                         child: RepaintBoundary(
                           child: CustomPaint(
                             key: const Key('segmentList'),
-                            size: const Size(double.infinity, 3.5),
+                            size: Size(
+                              double.infinity,
+                              isFullScreen ? 5.0 : 3.5,
+                            ),
                             painter: SegmentProgressBar(
                               segmentColors:
                                   videoDetailController.segmentProgressList,
@@ -126,12 +126,15 @@ class BottomControl extends StatelessWidget {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 5.25,
+                      bottom: isFullScreen ? 6.5 : 5.25,
                       child: IgnorePointer(
                         child: RepaintBoundary(
                           child: CustomPaint(
                             key: const Key('viewPointList'),
-                            size: const Size(double.infinity, 3.5),
+                            size: Size(
+                              double.infinity,
+                              isFullScreen ? 5.0 : 3.5,
+                            ),
                             painter: SegmentProgressBar(
                               segmentColors:
                                   videoDetailController.viewPointList,
@@ -144,14 +147,19 @@ class BottomControl extends StatelessWidget {
                       buildViewPointWidget(
                         videoDetailController,
                         controller,
-                        8.75,
+                        isFullScreen ? 10.5 : 8.75,
                         maxWidth - 40,
                       ),
                   ],
                   if (videoDetailController.showDmTreandChart.value)
                     if (videoDetailController.dmTrend.value?.dataOrNull
                         case final list?)
-                      buildDmChart(primary, list, videoDetailController, 4.5),
+                      buildDmChart(
+                        primary,
+                        list,
+                        videoDetailController,
+                        isFullScreen ? 6.0 : 4.5,
+                      ),
                 ],
               ),
             ),
