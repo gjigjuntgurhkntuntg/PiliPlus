@@ -9,6 +9,7 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get_utils/get_utils.dart';
 
 Future<VideoPlayerServiceHandler> initAudioService() async {
@@ -17,8 +18,9 @@ Future<VideoPlayerServiceHandler> initAudioService() async {
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.taoran.piliplus.audio',
       androidNotificationChannelName: 'Audio Service ${Constants.appName}',
-      // 暂停时不停止前台服务，防止被系统杀掉后台
-      androidStopForegroundOnPause: false,
+      // 暂停时停止前台服务，这样退出页面时媒体卡片会自动消失
+      // 后台播放场景下用户不会退出页面，所以不受影响
+      androidStopForegroundOnPause: true,
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
       androidNotificationChannelDescription: 'Media notification channel',
@@ -41,10 +43,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   // 是否启用列表控制（上一个/下一个）
   bool _enableListControl = false;
-  bool _isLive = false;
-  bool _lastPlaying = false;
 
   /// 设置列表控制模式
+  /// 注意：控件会在下次播放状态更新时自动刷新，不需要立即刷新
   void setListControlMode({
     bool enabled = false,
     Function? onNext,
@@ -53,20 +54,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _enableListControl = enabled;
     onSkipToNext = onNext;
     onSkipToPrevious = onPrevious;
-
-    // 刷新播放状态以更新通知控件
-    _refreshPlaybackControls();
-  }
-
-  /// 刷新播放状态控件
-  void _refreshPlaybackControls() {
-    if (!enableBackgroundPlay || _item.isEmpty) return;
-
-    playbackState.add(
-      playbackState.value.copyWith(
-        controls: _buildMediaControls(_lastPlaying, _isLive),
-      ),
-    );
   }
 
   @override
@@ -99,6 +86,27 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   Future<void> pause() async {
     await (onPause?.call() ?? PlPlayerController.pauseIfExists());
     // player.pause();
+  }
+
+  @override
+  Future<void> stop() async {
+    // 检查当前状态，如果已经是 idle，需要先设置为非 idle
+    // 这样才能触发 audio_service Android 端的 stop() 逻辑
+    // 根据 AudioService.java 源码：
+    // if (oldProcessingState != AudioProcessingState.idle && processingState == AudioProcessingState.idle) {
+    //     stop();
+    // }
+    final currentState = playbackState.value.processingState;
+    if (currentState == AudioProcessingState.idle) {
+      // 先设置为 ready，然后 super.stop() 会设置回 idle，从而触发停止
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.ready,
+          playing: false,
+        ),
+      );
+    }
+    await super.stop();
   }
 
   @override
@@ -144,10 +152,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     } else {
       processingState = AudioProcessingState.ready;
     }
-
-    // 保存状态用于刷新控件
-    _isLive = isLive;
-    _lastPlaying = playing;
 
     playbackState.add(
       playbackState.value.copyWith(
@@ -208,11 +212,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     String? artist,
     String? cover,
   }) {
+    if (kDebugMode) {
+      debugPrint('[AudioService] onVideoDetailChange called');
+      debugPrint('[AudioService] enableBackgroundPlay: $enableBackgroundPlay');
+    }
     if (!enableBackgroundPlay) return;
-    // if (kDebugMode) {
-    //   debugPrint('当前调用栈为：');
-    //   debugPrint(StackTrace.current);
-    // }
     if (!PlPlayerController.instanceExists()) return;
     if (data == null) return;
 
@@ -283,9 +287,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       );
     }
     if (mediaItem == null) return;
-    // if (kDebugMode) debugPrint("exist: ${PlPlayerController.instanceExists()}");
     if (!PlPlayerController.instanceExists()) return;
     _item.add(mediaItem);
+    if (kDebugMode) {
+      debugPrint('[AudioService] mediaItem added: ${mediaItem.title}');
+      debugPrint('[AudioService] _item.length: ${_item.length}');
+    }
     setMediaItem(mediaItem);
   }
 
@@ -295,7 +302,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (_item.isNotEmpty) {
       _item.removeWhere((item) => item.id.endsWith(herotag));
     }
+
     if (_item.isNotEmpty) {
+      // 还有其他视频在播放，切换到上一个
       playbackState.add(
         playbackState.value.copyWith(
           processingState: AudioProcessingState.idle,
@@ -304,33 +313,33 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       );
       setMediaItem(_item.last);
       stop();
+    } else {
+      // 没有其他视频了，但不在这里停止服务
+      // 由页面 dispose 中的 clear(force: true) 负责停止
+      // 这里只需确保状态是 idle，以便后续 clear() 能正确工作
     }
   }
 
-  void clear() {
-    if (!enableBackgroundPlay) return;
-    mediaItem.add(null);
+  /// 清理媒体通知，停止前台服务
+  /// [force] 强制清理，忽略 enableBackgroundPlay 设置
+  Future<void> clear({bool force = false}) async {
+    if (!force && !enableBackgroundPlay) return;
+
     _item.clear();
-    /**
-     * if (playbackState.processingState == AudioProcessingState.idle &&
-            previousState?.processingState != AudioProcessingState.idle) {
-          await AudioService._stop();
-        }
-     */
-    if (playbackState.value.processingState == AudioProcessingState.idle) {
-      playbackState.add(
-        PlaybackState(
-          processingState: AudioProcessingState.completed,
-          playing: false,
-        ),
-      );
+
+    // 清除 mediaItem
+    if (!mediaItem.isClosed) {
+      mediaItem.add(null);
     }
-    playbackState.add(
-      PlaybackState(
-        processingState: AudioProcessingState.idle,
-        playing: false,
-      ),
-    );
+
+    // 重置列表控制模式
+    _enableListControl = false;
+    onSkipToNext = null;
+    onSkipToPrevious = null;
+
+    // 调用 stop() 来停止服务
+    // stop() 会设置 processingState 为 idle 并触发 audio_service 停止前台服务
+    await stop();
   }
 
   void onPositionChange(Duration position) {

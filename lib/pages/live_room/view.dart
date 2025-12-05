@@ -141,6 +141,10 @@ class _LiveRoomPageState extends State<LiveRoomPage>
   @override
   void dispose() {
     videoPlayerServiceHandler?.onVideoDetailDispose(heroTag);
+    // 退出直播间时清理媒体通知
+    if (Utils.isMobile) {
+      videoPlayerServiceHandler?.clear(force: true);
+    }
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid && !plPlayerController.setSystemBrightness) {
       ScreenBrightnessPlatform.instance.resetApplicationScreenBrightness();

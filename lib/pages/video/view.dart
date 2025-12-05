@@ -288,6 +288,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           plPlayerController!.onLockControl(false);
         }
       }
+
+      // 播放完成且不会继续播放时，清理媒体通知卡片
+      if (Utils.isMobile && !notExitFlag) {
+        videoPlayerServiceHandler?.clear(force: true);
+      }
     }
   }
 
@@ -327,6 +332,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
   @override
   void dispose() {
+    debugPrint('[VideoDetailPage] dispose() called');
+
     plPlayerController
       ?..removeStatusLister(playerListener)
       ..removePositionListener(positionListener);
@@ -363,8 +370,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     shutdownTimerService.handleWaitingFinished();
     if (!videoDetailController.plPlayerController.isCloseAll) {
       videoPlayerServiceHandler?.onVideoDetailDispose(heroTag);
-      // 清除媒体通知列表控制模式
-      videoPlayerServiceHandler?.setListControlMode(enabled: false);
       if (plPlayerController != null) {
         videoDetailController.makeHeartBeat();
         plPlayerController!.dispose();
@@ -376,15 +381,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     WidgetsBinding.instance.removeObserver(this);
     if (Utils.isMobile) {
       showStatusBar();
-      // 如果未开启后台继续播放，退出播放时清理媒体服务并停止 AudioService，防止媒体卡片残留
-      final continueBg = videoDetailController
-          .plPlayerController
-          .continuePlayInBackground
-          .value;
-      if (!continueBg) {
-        videoPlayerServiceHandler?.clear();
-        videoPlayerServiceHandler?.stop();
-      }
+      // 退出播放时清理媒体服务
+      videoPlayerServiceHandler?.clear(force: true);
     }
     super.dispose();
   }
