@@ -55,6 +55,7 @@ import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
 import 'package:PiliPlus/plugin/pl_player/models/heart_beat_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
+import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/context_ext.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
@@ -76,6 +77,7 @@ import 'package:get/get_navigation/src/dialog/dialog_route.dart';
 import 'package:hive/hive.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 
 class VideoDetailController extends GetxController
     with GetTickerProviderStateMixin {
@@ -194,6 +196,25 @@ class VideoDetailController extends GetxController
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  Future<void> updateDesktopWindowTitle({
+    String? title,
+    String? subTitle,
+  }) async {
+    if (!Utils.isDesktop || !PlayerWindowService.isPlayerWindow) return;
+    final base = title?.trim();
+    if (base == null || base.isEmpty) return;
+
+    var display = base;
+    final sub = subTitle?.trim();
+    if (sub != null && sub.isNotEmpty && sub != display) {
+      display = '$base - $sub';
+    }
+
+    try {
+      await windowManager.setTitle(display);
+    } catch (_) {}
   }
 
   @pragma('vm:notify-debugger-on-exception')

@@ -121,6 +121,20 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         // 同步更新 videoDetailCtr.cid
         videoDetailCtr.cid.value = cid.value;
       }
+      String? partTitle;
+      final pagesForTitle = videoDetail.value.pages;
+      if (pagesForTitle != null && pagesForTitle.isNotEmpty) {
+        for (final page in pagesForTitle) {
+          if (page.cid == cid.value) {
+            partTitle = page.part;
+            break;
+          }
+        }
+      }
+      await videoDetailCtr.updateDesktopWindowTitle(
+        title: videoDetail.value.title,
+        subTitle: partTitle,
+      );
       queryUserStat(data.staff);
 
       // 更新媒体通知列表控制模式

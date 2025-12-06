@@ -564,6 +564,12 @@ class PgcIntroController extends CommonIntroController {
       heroTag,
       artist: pgcItem.title,
     );
+    unawaited(
+      videoDetailCtr.updateDesktopWindowTitle(
+        title: pgcItem.title,
+        subTitle: episode.showTitle ?? episode.longTitle ?? episode.title,
+      ),
+    );
   }
 
   Future<void> onFavPugv(bool isFav) async {
