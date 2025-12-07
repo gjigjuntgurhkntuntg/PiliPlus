@@ -20,6 +20,8 @@ class HomeController extends GetxController
   late TabController tabController;
 
   StreamController<bool>? searchBarStream;
+  // 搜索栏滚动比例，1.0 = 完全显示，0.0 = 完全隐藏
+  final RxDouble searchBarRatio = 1.0.obs;
   final bool hideSearchBar = Pref.hideSearchBar;
   final bool useSideBar = Pref.useSideBar;
 

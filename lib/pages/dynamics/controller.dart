@@ -28,6 +28,7 @@ class DynamicsController extends GetxController
 
   // UP主面板收起控制流（仅在top位置时使用）
   StreamController<bool>? upPanelStream;
+  final RxDouble upPanelRatio = 1.0.obs;
 
   late final RxInt mid = (-1).obs;
   late int currentMid = -1;

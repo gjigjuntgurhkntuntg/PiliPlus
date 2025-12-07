@@ -150,25 +150,25 @@ class _HomePageState extends State<HomePage>
 
   Widget customAppBar(ThemeData theme) {
     if (!_homeController.hideSearchBar) {
+      debugPrint('HomeView: hideSearchBar is FALSE');
       return Container(
         height: 52,
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
         child: searchBarAndUser(theme),
       );
     }
-    return StreamBuilder(
-      stream: _homeController.searchBarStream?.stream.distinct(),
-      initialData: true,
-      builder: (BuildContext context, AsyncSnapshot snapshot) {
-        return AnimatedOpacity(
-          opacity: snapshot.data ? 1 : 0,
-          duration: const Duration(milliseconds: 300),
-          child: AnimatedContainer(
-            curve: Curves.easeInOutCubicEmphasized,
-            duration: const Duration(milliseconds: 500),
-            height: snapshot.data ? 52 : 0,
-            padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-            child: searchBarAndUser(theme),
+    return Obx(
+      () {
+        final ratio = _homeController.searchBarRatio.value;
+        // 使用 ratio 直接控制高度和透明度
+        return Opacity(
+          opacity: ratio,
+          child: SizedBox(
+            height: 52 * ratio,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+              child: searchBarAndUser(theme),
+            ),
           ),
         );
       },

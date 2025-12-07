@@ -30,6 +30,8 @@ class MainController extends GetxController
   List<NavigationBarType> navigationBars = <NavigationBarType>[];
 
   StreamController<bool>? bottomBarStream;
+  // 底栏滚动比例，1.0 = 完全显示，0.0 = 完全隐藏
+  final RxDouble bottomBarRatio = 1.0.obs;
   late bool hideTabBar = Pref.hideTabBar;
   late bool enableTabBarSwipe = Pref.enableTabBarSwipe;
   late dynamic controller;
@@ -323,7 +325,10 @@ class MainController extends GetxController
   }
 
   void setSearchBar() {
+    // 重置面板显示状态
+    bottomBarRatio.value = 1.0;
     if (hasHome) {
+      homeController.searchBarRatio.value = 1.0;
       homeController.searchBarStream?.add(true);
     }
   }

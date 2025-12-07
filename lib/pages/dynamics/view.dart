@@ -77,26 +77,19 @@ class _DynamicsPageState extends State<DynamicsPage>
 
     // 顶部位置时，添加滚动收起效果
     if (isTop && _dynamicsController.upPanelStream != null) {
-      return StreamBuilder(
-        stream: _dynamicsController.upPanelStream?.stream.distinct(),
-        initialData: true,
-        builder: (BuildContext context, AsyncSnapshot snapshot) {
-          final isVisible = snapshot.data == true;
-          return ClipRect(
-            child: AnimatedAlign(
-              alignment: Alignment.topCenter,
-              curve: Curves.easeInOutCubicEmphasized,
-              duration: const Duration(milliseconds: 500),
-              heightFactor: isVisible ? 1.0 : 0.0,
-              child: AnimatedOpacity(
-                opacity: isVisible ? 1 : 0,
-                duration: const Duration(milliseconds: 300),
-                child: panel,
-              ),
+      return Obx(() {
+        final ratio = _dynamicsController.upPanelRatio.value;
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: ratio,
+            child: Opacity(
+              opacity: ratio,
+              child: panel,
             ),
-          );
-        },
-      );
+          ),
+        );
+      });
     }
 
     return panel;

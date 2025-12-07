@@ -480,16 +480,14 @@ class _MainAppState extends State<MainApp>
           ),
           bottomNavigationBar: useBottomNav
               ? _mainController.hideTabBar
-                    ? StreamBuilder(
-                        stream: _mainController.bottomBarStream?.stream
-                            .distinct(),
-                        initialData: true,
-                        builder: (context, AsyncSnapshot snapshot) {
-                          final bool isVisible = snapshot.data ?? true;
+                    ? Obx(
+                        () {
+                          final ratio = _mainController.bottomBarRatio.value;
+                          final isHidden = ratio == 0;
                           return Stack(
                             children: [
                               // 底栏隐藏时的滑动切换区域
-                              if (!isVisible &&
+                              if (isHidden &&
                                   _mainController.enableTabBarSwipe)
                                 Positioned.fill(
                                   child: GestureDetector(
@@ -520,11 +518,13 @@ class _MainAppState extends State<MainApp>
                                     },
                                   ),
                                 ),
-                              AnimatedSlide(
-                                curve: Curves.easeInOutCubicEmphasized,
-                                duration: const Duration(milliseconds: 500),
-                                offset: Offset(0, isVisible ? 0 : 1),
-                                child: bottomNav,
+                              // 使用 Transform 实现跟随手指的平滑滑动
+                              Transform.translate(
+                                offset: Offset(0, (1 - ratio) * 100),
+                                child: Opacity(
+                                  opacity: ratio,
+                                  child: bottomNav,
+                                ),
                               ),
                             ],
                           );
