@@ -59,6 +59,10 @@ abstract class CommonIntroController extends GetxController
   bool prevPlay();
   bool nextPlay();
 
+  /// 恢复媒体通知列表控制模式
+  /// 当从其他页面返回时调用，以确保媒体卡片按钮状态正确
+  void restoreListControlMode() {}
+
   void actionCoinVideo();
   void actionShareVideo(BuildContext context);
 

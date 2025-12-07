@@ -127,6 +127,9 @@ class PgcIntroController extends CommonIntroController {
     );
   }
 
+  @override
+  void restoreListControlMode() => _updateListControlMode();
+
   // 获取点赞/投币/收藏状态
   Future<void> queryPgcLikeCoinFav() async {
     var result = await VideoHttp.pgcLikeCoinFav(epId: epId);

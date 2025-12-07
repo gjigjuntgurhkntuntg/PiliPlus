@@ -450,6 +450,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
     introController.startTimer();
 
+    // 恢复媒体通知列表控制模式（从听视频页返回时需要）
+    introController.restoreListControlMode();
+
     if (mounted &&
         Platform.isAndroid &&
         !videoDetailController.setSystemBrightness) {

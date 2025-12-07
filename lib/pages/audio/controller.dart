@@ -915,7 +915,8 @@ class AudioController extends GetxController
       ?..onPlay = null
       ..onPause = null
       ..onSeek = null
-      ..setListControlMode(enabled: false)
+      // 不要在这里重置 setListControlMode，因为播放器页有自己的状态管理
+      // 从听视频页返回时，播放器页的 didPopNext 会恢复正确的列表控制模式
       ..onVideoDetailDispose(hashCode.toString());
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions = null;

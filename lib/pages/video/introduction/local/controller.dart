@@ -372,6 +372,9 @@ class LocalIntroController extends CommonIntroController {
     );
   }
 
+  @override
+  void restoreListControlMode() => _updateListControlMode();
+
   final index = (-1).obs;
   double get _offset => index * 100 + 7 - 35;
   final list = RxList<BiliDownloadEntryInfo>();

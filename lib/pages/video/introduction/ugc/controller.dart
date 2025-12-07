@@ -167,6 +167,9 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     );
   }
 
+  @override
+  void restoreListControlMode() => _updateListControlMode();
+
   // 获取up主粉丝数
   Future<void> queryUserStat(List<Staff>? staff) async {
     if (staff?.isNotEmpty == true) {
