@@ -102,7 +102,16 @@ class VideoDetailController extends GetxController
   late SourceType sourceType;
   late BiliDownloadEntryInfo entry;
   late bool isFileSource;
-  late bool _mediaDesc = false;
+  final RxBool _mediaDesc = false.obs;
+
+  /// 列表排序（true: 顺序, false: 倒序）
+  bool get mediaDesc => _mediaDesc.value;
+
+  /// 切换媒体列表排序并重新加载
+  void toggleMediaListOrder() {
+    _mediaDesc.value = !_mediaDesc.value;
+    getMediaList(isReverse: true);
+  }
   late final RxList<MediaListItemModel> mediaList = <MediaListItemModel>[].obs;
   late String watchLaterTitle;
 
@@ -447,7 +456,7 @@ class VideoDetailController extends GetxController
       initFileSource(args['entry']);
     } else if (isPlayAll) {
       watchLaterTitle = args['favTitle'];
-      _mediaDesc = args['desc'];
+      _mediaDesc.value = args['desc'] ?? false;
       getMediaList();
     }
 
@@ -487,7 +496,7 @@ class VideoDetailController extends GetxController
           : isLoadPrevious
           ? mediaList.first.type
           : mediaList.last.type,
-      desc: _mediaDesc,
+      desc: _mediaDesc.value,
       sortField: args['sortField'] ?? 1,
       withCurrent: mediaList.isEmpty && args['isContinuePlaying'] == true
           ? true
@@ -537,9 +546,9 @@ class VideoDetailController extends GetxController
         },
         count: args['count'],
         loadMoreMedia: getMediaList,
-        desc: _mediaDesc,
+        desc: _mediaDesc.value,
         onReverse: () {
-          _mediaDesc = !_mediaDesc;
+          _mediaDesc.value = !_mediaDesc.value;
           getMediaList(isReverse: true);
         },
         loadPrevious: args['isContinuePlaying'] == true
@@ -1766,7 +1775,7 @@ class VideoDetailController extends GetxController
   void updateMediaListHistory(int aid) {
     if (args['sortField'] != null) {
       VideoHttp.medialistHistory(
-        desc: _mediaDesc ? 1 : 0,
+        desc: _mediaDesc.value ? 1 : 0,
         oid: aid,
         upperMid: args['mediaId'],
       );

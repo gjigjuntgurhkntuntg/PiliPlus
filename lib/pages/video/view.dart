@@ -31,6 +31,7 @@ import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/view.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/page.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/season.dart';
+import 'package:PiliPlus/pages/video/medialist/view.dart';
 import 'package:PiliPlus/pages/video/member/controller.dart';
 import 'package:PiliPlus/pages/video/member/view.dart';
 import 'package:PiliPlus/pages/video/related/view.dart';
@@ -66,6 +67,7 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart' hide ContextExtensionss;
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
 
 class VideoDetailPageV extends StatefulWidget {
@@ -179,6 +181,38 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
   void positionListener(Duration position) {
     videoDetailController.playedTime = position;
+  }
+
+  Widget mediaListTab() {
+    return KeepAliveWrapper(
+      builder: (context) => MediaListPanel(
+        enableSlide: false,
+        inTab: true,
+        mediaList: videoDetailController.mediaList,
+        onChangeEpisode: (episode) {
+          try {
+            if (videoDetailController.isUgc) {
+              ugcIntroController.onChangeEpisode(episode);
+            } else {
+              pgcIntroController.onChangeEpisode(episode);
+            }
+          } catch (_) {}
+        },
+        panelTitle: null,
+        bvid: () {
+          videoDetailController.cid.value;
+          return videoDetailController.bvid;
+        },
+        count: videoDetailController.args['count'],
+        loadMoreMedia: videoDetailController.getMediaList,
+        desc: videoDetailController.mediaDesc,
+        onReverse: () => videoDetailController.toggleMediaListOrder(),
+        loadPrevious: videoDetailController.args['isContinuePlaying'] == true
+            ? () => videoDetailController.getMediaList(isLoadPrevious: true)
+            : null,
+        onDelete: null,
+      ),
+    );
   }
 
   @override
@@ -897,6 +931,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
+                        if (videoDetailController.isPlayAll) mediaListTab(),
                         videoIntro(
                           isHorizontal: false,
                           needCtr: false,
@@ -966,6 +1001,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
+                        if (videoDetailController.isPlayAll) mediaListTab(),
                         videoIntro(
                           width: introWidth,
                           height: maxHeight,
@@ -1034,6 +1070,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                       child: videoTabBarView(
                         controller: videoDetailController.tabCtr,
                         children: [
+                          if (videoDetailController.isPlayAll) mediaListTab(),
                           if (videoDetailController.showReply)
                             videoReplyPanel(),
                           if (_shouldShowSeasonPanel) seasonPanel,
@@ -1115,6 +1152,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
+                        if (videoDetailController.isPlayAll) mediaListTab(),
                         if (videoDetailController.isFileSource)
                           localIntroPanel()
                         else if (showIntro)
@@ -1469,7 +1507,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     VoidCallback? onTap,
     bool showPlaylistHeader = false,
   }) {
+    // 将“列表” tab 放到最前面（如果存在），其他 tab 按原来的顺序出现
     List<String> tabs = [
+      if (videoDetailController.isPlayAll)
+        videoDetailController.watchLaterTitle,
       if (showIntro)
         videoDetailController.isFileSource ? '离线视频' : introText ?? '简介',
       if (videoDetailController.showReply) '评论',
@@ -1534,7 +1575,117 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       }).toList(),
     );
 
-    final tabbarWidget = Container(
+    // tabbarWidget removed; actions will be composed below
+
+    // 将排序按钮放到最右边，且仅在“列表” tab 时显示（桌面端 isPlayAll）
+    Widget rightActions() {
+      final listTabIndex = tabs.indexWhere(
+        (t) => t == videoDetailController.watchLaterTitle,
+      );
+      final isOnListTab =
+          videoDetailController.isPlayAll &&
+          listTabIndex != -1 &&
+          videoDetailController.tabCtr.index == listTabIndex;
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            SizedBox(
+              width: 38,
+              height: 38,
+              child: IconButton(
+                tooltip: '发弹幕',
+                onPressed: videoDetailController.showShootDanmakuSheet,
+                icon: Icon(
+                  Icons.chat_bubble_outline,
+                  size: 20,
+                  color: themeData.colorScheme.onSurfaceVariant,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+            SizedBox(
+              width: 38,
+              height: 38,
+              child: Obx(
+                () {
+                  final ctr = videoDetailController.plPlayerController;
+                  final enableShowDanmaku = ctr.enableShowDanmaku.value;
+                  return IconButton(
+                    onPressed: () {
+                      final newVal = !enableShowDanmaku;
+                      ctr.enableShowDanmaku.value = newVal;
+                      if (!ctr.tempPlayerConf) {
+                        GStorage.setting.put(
+                          SettingBoxKey.enableShowDanmaku,
+                          newVal,
+                        );
+                      }
+                    },
+                    icon: Icon(
+                      enableShowDanmaku
+                          ? CustomIcons.dm_on
+                          : CustomIcons.dm_off,
+                      size: 22,
+                      color: enableShowDanmaku
+                          ? themeData.colorScheme.secondary
+                          : themeData.colorScheme.outline,
+                    ),
+                    padding: EdgeInsets.zero,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 当处于列表 tab 时显示排序按钮
+            if (isOnListTab)
+              SizedBox(
+                width: 38,
+                height: 38,
+                child: IconButton(
+                  tooltip: videoDetailController.mediaDesc ? '顺序播放' : '倒序播放',
+                  onPressed: () => videoDetailController.toggleMediaListOrder(),
+                  icon: Obx(
+                    () => Icon(
+                      videoDetailController.mediaDesc
+                          ? MdiIcons.sortAscending
+                          : MdiIcons.sortDescending,
+                      size: 20,
+                    ),
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final rightWidget = Flexible(
+      flex: 1,
+      child: AnimatedBuilder(
+        animation: videoDetailController.tabCtr,
+        builder: (context, child) => Center(child: rightActions()),
+      ),
+    );
+
+    final composed = Row(
+      children: [
+        if (tabs.isEmpty)
+          const Spacer()
+        else
+          Flexible(
+            flex: tabs.length == 3 ? 2 : 1,
+            child: tabbar(),
+          ),
+        rightWidget,
+      ],
+    );
+
+    return Container(
       height: 45,
       decoration: BoxDecoration(
         border: Border(
@@ -1544,137 +1695,12 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           ),
         ),
       ),
-      child: Row(
-        children: [
-          if (tabs.isEmpty)
-            const Spacer()
-          else
-            Flexible(
-              flex: tabs.length == 3 ? 2 : 1,
-              child: tabbar(),
-            ),
-          Flexible(
-            flex: 1,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    height: 32,
-                    child: TextButton(
-                      style: const ButtonStyle(
-                        padding: WidgetStatePropertyAll(EdgeInsets.zero),
-                      ),
-                      onPressed: videoDetailController.showShootDanmakuSheet,
-                      child: Text(
-                        '发弹幕',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: themeData.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 38,
-                    height: 38,
-                    child: Obx(
-                      () {
-                        final ctr = videoDetailController.plPlayerController;
-                        final enableShowDanmaku = ctr.enableShowDanmaku.value;
-                        return IconButton(
-                          onPressed: () {
-                            final newVal = !enableShowDanmaku;
-                            ctr.enableShowDanmaku.value = newVal;
-                            if (!ctr.tempPlayerConf) {
-                              GStorage.setting.put(
-                                SettingBoxKey.enableShowDanmaku,
-                                newVal,
-                              );
-                            }
-                          },
-                          icon: Icon(
-                            size: 22,
-                            enableShowDanmaku
-                                ? CustomIcons.dm_on
-                                : CustomIcons.dm_off,
-                            color: enableShowDanmaku
-                                ? themeData.colorScheme.secondary
-                                : themeData.colorScheme.outline,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: composed,
     );
-
-    // 如果需要显示播放列表头部（桌面端列表播放时）
-    if (showPlaylistHeader && videoDetailController.isPlayAll) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildDesktopPlaylistHeader(),
-          tabbarWidget,
-        ],
-      );
-    }
-
-    return tabbarWidget;
   }
 
   /// 构建桌面端播放列表头部按钮
-  Widget _buildDesktopPlaylistHeader() {
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: () => videoDetailController.showMediaListPanel(context),
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: themeData.colorScheme.secondaryContainer.withValues(
-              alpha: 0.5,
-            ),
-            border: Border(
-              bottom: BorderSide(
-                width: 1,
-                color: themeData.dividerColor.withValues(alpha: 0.1),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.playlist_play, size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  videoDetailController.watchLaterTitle,
-                  style: TextStyle(
-                    color: themeData.colorScheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Icon(
-                Icons.keyboard_arrow_up_rounded,
-                size: 22,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // Desktop expand header removed; list now shown as a tab when `isPlayAll`.
 
   Widget videoPlayer({required double width, required double height}) {
     final isFullScreen = this.isFullScreen;
