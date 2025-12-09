@@ -162,8 +162,8 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
     videoPlayerServiceHandler?.setListControlMode(
       enabled: enableListControl,
-      onNext: enableListControl ? () => nextPlay() : null,
-      onPrevious: enableListControl ? () => prevPlay() : null,
+      onNext: enableListControl ? nextPlay : null,
+      onPrevious: enableListControl ? prevPlay : null,
     );
   }
 
@@ -534,8 +534,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         ..onReset(isStein: isStein)
         ..bvid = bvid
         ..aid = aid
-        ..cid.value = cid
-        ..queryVideoUrl();
+        ..cid.value = cid;
+
+      // 重要：在后台/锁屏场景下，必须等待 queryVideoUrl 完成才能继续
+      // 否则播放器尚未初始化好，自动播放会失败
+      await videoDetailCtr.queryVideoUrl();
 
       if (this.bvid != bvid) {
         reload = true;
@@ -758,21 +761,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       }
 
       if (cid != this.cid.value) {
-        // trigger change, and ensure playerInit runs to autoplay when resources ready
-        onChangeEpisode(episodes[nextIndex]).then((changed) async {
-          if (changed) {
-            // 等待短暂时间让资源和状态稳定，尤其在 Android 后台场景
-            await Future.delayed(const Duration(milliseconds: 250));
-            try {
-              await videoDetailCtr.playerInit(autoplay: true);
-            } catch (_) {
-              // 回退到直接调用底层播放，部分情况下 playerInit 可能已初始化完毕
-              try {
-                videoDetailCtr.plPlayerController.play();
-              } catch (_) {}
-            }
-          }
-        });
+        onChangeEpisode(episodes[nextIndex]);
         return true;
       } else {
         return false;

@@ -122,8 +122,8 @@ class PgcIntroController extends CommonIntroController {
 
     videoPlayerServiceHandler?.setListControlMode(
       enabled: hasMultiEpisodes,
-      onNext: hasMultiEpisodes ? () => nextPlay() : null,
-      onPrevious: hasMultiEpisodes ? () => prevPlay() : null,
+      onNext: hasMultiEpisodes ? nextPlay : null,
+      onPrevious: hasMultiEpisodes ? prevPlay : null,
     );
   }
 
@@ -355,8 +355,11 @@ class PgcIntroController extends CommonIntroController {
         ..epId = epId
         ..bvid = bvid
         ..aid = aid
-        ..cid.value = cid
-        ..queryVideoUrl();
+        ..cid.value = cid;
+
+      // 重要：在后台/锁屏场景下，必须等待 queryVideoUrl 完成才能继续
+      await videoDetailCtr.queryVideoUrl();
+
       if (cover != null && cover.isNotEmpty) {
         videoDetailCtr.cover.value = cover;
       }
@@ -471,18 +474,7 @@ class PgcIntroController extends CommonIntroController {
           return false;
         }
       }
-      onChangeEpisode(episodes[nextIndex]).then((changed) async {
-        if (changed) {
-          await Future.delayed(const Duration(milliseconds: 250));
-          try {
-            await videoDetailCtr.playerInit(autoplay: true);
-          } catch (_) {
-            try {
-              videoDetailCtr.plPlayerController.play();
-            } catch (_) {}
-          }
-        }
-      });
+      onChangeEpisode(episodes[nextIndex]);
       return true;
     } catch (_) {
       return false;
