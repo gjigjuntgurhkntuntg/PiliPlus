@@ -1507,10 +1507,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     VoidCallback? onTap,
     bool showPlaylistHeader = false,
   }) {
+    final showDesktopListTab =
+        videoDetailController.isPlayAll && Utils.isDesktop;
     // 将“列表” tab 放到最前面（如果存在），其他 tab 按原来的顺序出现
     List<String> tabs = [
-      if (videoDetailController.isPlayAll)
-        videoDetailController.watchLaterTitle,
+      if (showDesktopListTab) videoDetailController.watchLaterTitle,
       if (showIntro)
         videoDetailController.isFileSource ? '离线视频' : introText ?? '简介',
       if (videoDetailController.showReply) '评论',
@@ -1579,11 +1580,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
     // 将排序按钮放到最右边，且仅在“列表” tab 时显示（桌面端 isPlayAll）
     Widget rightActions() {
-      final listTabIndex = tabs.indexWhere(
-        (t) => t == videoDetailController.watchLaterTitle,
-      );
+      final listTabIndex = showDesktopListTab
+          ? tabs.indexWhere(
+              (t) => t == videoDetailController.watchLaterTitle,
+            )
+          : -1;
       final isOnListTab =
-          videoDetailController.isPlayAll &&
+          showDesktopListTab &&
           listTabIndex != -1 &&
           videoDetailController.tabCtr.index == listTabIndex;
       return FittedBox(
@@ -1664,11 +1667,14 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       );
     }
 
-    final rightWidget = Flexible(
-      flex: 1,
+    final rightWidget = SizedBox(
+      width: 130,
       child: AnimatedBuilder(
         animation: videoDetailController.tabCtr,
-        builder: (context, child) => Center(child: rightActions()),
+        builder: (context, child) => Align(
+          alignment: Alignment.centerRight,
+          child: rightActions(),
+        ),
       ),
     );
 
@@ -1677,10 +1683,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         if (tabs.isEmpty)
           const Spacer()
         else
-          Flexible(
-            flex: tabs.length == 3 ? 2 : 1,
-            child: tabbar(),
-          ),
+          Expanded(child: tabbar()),
         rightWidget,
       ],
     );
