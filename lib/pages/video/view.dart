@@ -931,7 +931,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll) mediaListTab(),
                         videoIntro(
                           isHorizontal: false,
                           needCtr: false,
@@ -1001,7 +1000,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll) mediaListTab(),
                         videoIntro(
                           width: introWidth,
                           height: maxHeight,
@@ -1070,7 +1068,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                       child: videoTabBarView(
                         controller: videoDetailController.tabCtr,
                         children: [
-                          if (videoDetailController.isPlayAll) mediaListTab(),
                           if (videoDetailController.showReply)
                             videoReplyPanel(),
                           if (_shouldShowSeasonPanel) seasonPanel,
@@ -1152,7 +1149,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll) mediaListTab(),
                         if (videoDetailController.isFileSource)
                           localIntroPanel()
                         else if (showIntro)
@@ -1589,10 +1585,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           showDesktopListTab &&
           listTabIndex != -1 &&
           videoDetailController.tabCtr.index == listTabIndex;
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerRight,
-        child: Row(
+      return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -1663,16 +1656,15 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 ),
               ),
           ],
-        ),
-      );
+        );
     }
 
-    final rightWidget = SizedBox(
-      width: 130,
-      child: AnimatedBuilder(
-        animation: videoDetailController.tabCtr,
-        builder: (context, child) => Align(
-          alignment: Alignment.centerRight,
+    final rightWidget = AnimatedBuilder(
+      animation: videoDetailController.tabCtr,
+      builder: (context, child) => Align(
+        alignment: Alignment.centerRight,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           child: rightActions(),
         ),
       ),
@@ -1690,6 +1682,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
     return Container(
       height: 45,
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
