@@ -207,13 +207,11 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
           theme: ThemeUtils.getThemeData(
             colorScheme: lightColorScheme,
             isDynamic: lightDynamic != null && isDynamicColor,
-            variant: variant,
           ),
           darkTheme: ThemeUtils.getThemeData(
             colorScheme: darkColorScheme,
             isDynamic: darkDynamic != null && isDynamicColor,
             isDark: true,
-            variant: variant,
           ),
           themeMode: Pref.themeMode,
           localizationsDelegates: const [

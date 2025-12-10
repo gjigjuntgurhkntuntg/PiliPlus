@@ -386,7 +386,7 @@ class PgcIntroController extends CommonIntroController {
       return true;
     } catch (e, s) {
       if (kDebugMode) debugPrint('pgc onChangeEpisode: $e');
-      Utils.reportError(e, s, 'PgcIntroController.onChangeEpisode');
+      Utils.reportError(e, s);
       return false;
     }
   }
