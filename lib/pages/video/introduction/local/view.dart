@@ -48,8 +48,8 @@ class _LocalIntroPanelState extends State<LocalIntroPanel>
 
       return SliverList(
         delegate: SliverChildListDelegate([
-          // 视频详情区域（有网络时显示）
-          if (hasNetwork && onlineDetailLoaded) ...[
+          // 视频详情区域（在线时显示，或离线时显示本地详情）
+          if (onlineDetailLoaded) ...[
             _buildVideoDetailSection(context, theme),
             const SizedBox(height: 8),
             _buildActionButtons(context, theme),

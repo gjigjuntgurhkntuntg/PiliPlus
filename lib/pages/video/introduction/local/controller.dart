@@ -58,6 +58,9 @@ class LocalIntroController extends CommonIntroController {
 
     if (hasNetwork.value) {
       await _loadOnlineDetail();
+    } else {
+      // 离线时，标记本地详情已加载（使用本地存储的数据）
+      onlineDetailLoaded.value = true;
     }
   }
 
