@@ -48,17 +48,19 @@ class _LocalIntroPanelState extends State<LocalIntroPanel>
 
       return SliverList(
         delegate: SliverChildListDelegate([
-          // 视频详情区域（在线时显示，或离线时显示本地详情）
-          if (onlineDetailLoaded) ...[
-            _buildVideoDetailSection(context, theme),
+          // 视频详情区域（无网/未加载时也展示本地标题，简介按可用性展示）
+          _buildVideoDetailSection(
+            context,
+            theme,
+            hasNetwork: hasNetwork,
+            onlineDetailLoaded: onlineDetailLoaded,
+          ),
+          if (hasNetwork && !onlineDetailLoaded) ...[
             const SizedBox(height: 8),
-            _buildActionButtons(context, theme),
-            const Divider(height: 24, indent: 12, endIndent: 12),
-          ] else if (hasNetwork && !onlineDetailLoaded) ...[
-            // 加载中提示
             const Padding(
-              padding: EdgeInsets.all(StyleString.safeSpace),
-              child: Center(
+              padding: EdgeInsets.symmetric(horizontal: StyleString.safeSpace),
+              child: Align(
+                alignment: Alignment.centerLeft,
                 child: SizedBox(
                   width: 20,
                   height: 20,
@@ -67,6 +69,11 @@ class _LocalIntroPanelState extends State<LocalIntroPanel>
               ),
             ),
           ],
+          if (onlineDetailLoaded) ...[
+            const SizedBox(height: 8),
+            _buildActionButtons(context, theme),
+          ],
+          const Divider(height: 24, indent: 12, endIndent: 12),
           // 离线视频列表
           ..._controller.list.asMap().entries.map((entry) {
             final index = entry.key;
@@ -79,10 +86,20 @@ class _LocalIntroPanelState extends State<LocalIntroPanel>
   }
 
   /// 构建视频详情区域
-  Widget _buildVideoDetailSection(BuildContext context, ThemeData theme) {
+  Widget _buildVideoDetailSection(
+    BuildContext context,
+    ThemeData theme, {
+    required bool hasNetwork,
+    required bool onlineDetailLoaded,
+  }) {
     final videoDetail = _controller.videoDetail.value;
     final owner = videoDetail.owner;
     final userStat = _controller.userStat.value;
+    final title = videoDetail.title;
+    final desc = videoDetail.desc;
+    final hasDesc =
+        (desc?.trim().isNotEmpty ?? false) ||
+        (videoDetail.descV2?.isNotEmpty == true);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: StyleString.safeSpace),
@@ -90,6 +107,31 @@ class _LocalIntroPanelState extends State<LocalIntroPanel>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
+          if (title != null && title.trim().isNotEmpty) ...[
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (hasDesc && (desc?.trim().isNotEmpty ?? false)) ...[
+            Text(
+              desc!,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 8),
+          ] else if (!hasDesc) ...[
+            Text(
+              onlineDetailLoaded ? '暂无简介' : (hasNetwork ? '简介加载中…' : '离线暂无简介'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           // UP主信息行
           if (owner != null)
             GestureDetector(

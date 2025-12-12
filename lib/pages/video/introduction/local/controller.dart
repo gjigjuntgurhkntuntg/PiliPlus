@@ -7,6 +7,7 @@ import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/member_card_info/data.dart';
 import 'package:PiliPlus/models_new/triple/ugc_triple.dart';
+import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/stat_detail.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/download/controller.dart';
@@ -324,7 +325,10 @@ class LocalIntroController extends CommonIntroController {
   @override
   void onInit() {
     super.onInit();
-    videoDetail.value.title = videoDetailCtr.args['title'];
+    final argTitle = videoDetailCtr.args['title'];
+    if (argTitle is String && argTitle.trim().isNotEmpty) {
+      videoDetail.value.title = argTitle;
+    }
     final controller = Get.find<DownloadPageController>();
     final list = <BiliDownloadEntryInfo>[];
     for (final e in controller.pages) {
@@ -339,6 +343,11 @@ class LocalIntroController extends CommonIntroController {
     final currCid = videoDetailCtr.cid.value;
     final index = list.indexWhere((e) => e.cid == currCid);
     this.index.value = index;
+    if ((videoDetail.value.title?.trim().isNotEmpty ?? false) == false &&
+        index >= 0 &&
+        index < list.length) {
+      videoDetail.value.title = list[index].showTitle;
+    }
     if (Utils.isMobile) {
       onVideoDetailChange(list[index]);
     }
@@ -419,6 +428,22 @@ class LocalIntroController extends CommonIntroController {
     BiliDownloadEntryInfo? entry,
   }) {
     entry ??= list[index];
+
+    // 切换离线视频时：必须同步更新 IntroController 自身的 bvid/cid，
+    // 否则 queryVideoIntro/评论等仍会沿用旧视频的信息。
+    bvid = entry.bvid;
+    cid.value = entry.cid;
+
+    // 先清空上一条视频的在线详情状态，避免 UI 暂时显示旧数据
+    onlineDetailLoaded.value = false;
+    videoTags.value = null;
+    hasLike.value = false;
+    hasFav.value = false;
+    coinNum.value = 0;
+    hasDislike.value = false;
+    userStat.value = MemberCardInfoData();
+    followStatus.clear();
+
     videoDetailCtr
       ..onReset()
       ..cover.value = entry.cover
@@ -429,9 +454,27 @@ class LocalIntroController extends CommonIntroController {
       ..initFileSource(entry, isInit: false)
       // 调用 queryVideoUrl() 来获取新视频的空降助手数据（如果有网络）
       ..queryVideoUrl();
-    videoDetail
-      ..value.title = entry.showTitle
-      ..refresh();
+
+    // 先用本地信息更新标题/封面（无网络时至少不会显示上一条视频的详情）
+    videoDetail.value = VideoDetailData(
+      bvid: entry.bvid,
+      aid: entry.avid,
+      cid: entry.cid,
+      title: entry.showTitle,
+      pic: entry.cover,
+    );
+
+    // 异步检测网络并加载在线详情；完成后如允许显示评论则刷新评论列表
+    _checkNetworkAndLoadDetail().whenComplete(() {
+      if (!hasNetwork.value) return;
+      if (!videoDetailCtr.plPlayerController.showVideoReply) return;
+      try {
+        Get.find<VideoReplyController>(tag: heroTag)
+          ..aid = entry!.avid
+          ..onReload();
+      } catch (_) {}
+    });
+
     this.index.value = index;
     if (Utils.isMobile) {
       onVideoDetailChange(entry);
