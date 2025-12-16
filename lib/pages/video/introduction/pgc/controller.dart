@@ -62,6 +62,10 @@ class PgcIntroController extends CommonIntroController {
     epId = args['epId'];
     isPgc = args['videoType'] == VideoType.pgc;
 
+    // Important: initialize CommonIntroController fields (heroTag/bvid/cid)
+    // before calling any logic that may read cid.
+    super.onInit();
+
     final passedPgcItem = args['pgcItem'];
     if (passedPgcItem != null) {
       pgcItem = passedPgcItem;
@@ -72,8 +76,6 @@ class PgcIntroController extends CommonIntroController {
       // pgcItem 未传递，需要异步加载
       _loadPgcItem();
     }
-
-    super.onInit();
   }
 
   /// 异步加载 pgcItem

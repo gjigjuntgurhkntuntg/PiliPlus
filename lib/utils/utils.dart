@@ -164,6 +164,11 @@ abstract class Utils {
   /// `@pragma('vm:notify-debugger-on-exception')` to allow an attached debugger
   /// to treat the exception as unhandled.
   static void reportError(Object exception, [StackTrace? stack]) {
-    Catcher2.reportCheckedError(exception, stack);
+    try {
+      Catcher2.reportCheckedError(exception, stack);
+    } catch (_) {
+      // Catcher2 may be uninitialized (e.g., logging disabled or in sub-window).
+      // Swallow to avoid crashing the app while still allowing callers to report.
+    }
   }
 }

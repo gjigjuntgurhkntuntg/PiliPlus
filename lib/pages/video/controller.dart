@@ -648,8 +648,7 @@ class VideoDetailController extends GetxController
     final List<BiliDownloadEntryInfo> flattened;
     if (pageId != null && pageId.isNotEmpty) {
       final list =
-          downloadService.downloadList.where((e) => e.pageId == pageId)
-          .toList()
+          downloadService.downloadList.where((e) => e.pageId == pageId).toList()
             ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
       flattened = list;
     } else {
@@ -657,11 +656,10 @@ class VideoDetailController extends GetxController
       final grouped = <String, List<BiliDownloadEntryInfo>>{};
       for (final e in downloadService.downloadList) {
         final pid = e.pageId;
-        final bucket = grouped.putIfAbsent(pid, () {
+        final _ = grouped.putIfAbsent(pid, () {
           order.add(pid);
           return <BiliDownloadEntryInfo>[];
-        });
-        bucket.add(e);
+        })..add(e);
       }
       final out = <BiliDownloadEntryInfo>[];
       for (final pid in order) {
