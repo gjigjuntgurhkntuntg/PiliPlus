@@ -90,11 +90,40 @@ void main() async {
         allSettings,
         accountData: accountData,
       );
+
+      // Initialize downloadPath for sub-window so offline cache list works.
+      if (Utils.isDesktop) {
+        final customDownPath = Pref.downloadPath;
+        if (customDownPath != null && customDownPath.isNotEmpty) {
+          try {
+            final dir = Directory(customDownPath);
+            if (!dir.existsSync()) {
+              await dir.create(recursive: true);
+            }
+            downloadPath = customDownPath;
+          } catch (e) {
+            downloadPath = defDownloadPath;
+            await GStorage.setting.delete(SettingBoxKey.downloadPath);
+            if (kDebugMode) {
+              debugPrint('download path error (sub-window): $e');
+            }
+          }
+        } else {
+          downloadPath = defDownloadPath;
+        }
+      }
+
       // Initialize HTTP client after storage is ready
       Request();
       // Set up AccountManager interceptor for sub-window (without full setCookie)
       Request.accountManager = AccountManager();
       Request.dio.interceptors.add(Request.accountManager);
+
+      // Provide DownloadService in sub-window so offline cache playlists can load.
+      // This is lightweight (reads local download list) and does not start downloads.
+      if (!Get.isRegistered<DownloadService>()) {
+        Get.put(DownloadService(), permanent: true);
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('Sub-window init error: $e');
     }
