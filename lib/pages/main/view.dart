@@ -11,12 +11,15 @@ import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/multi_window/player_window_service.dart';
+import 'package:PiliPlus/services/multi_window/window_controller_extension.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/context_ext.dart';
 import 'package:PiliPlus/utils/extension.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -201,8 +204,13 @@ class _MainAppState extends State<MainApp>
     switch (menuItem.key) {
       case 'show':
         windowManager.show();
+        return;
+      case 'toggle_play_page_on_top':
+        _togglePlayPageAlwaysOnTop();
+        return;
       case 'exit':
         _onClose();
+        return;
     }
   }
 
@@ -219,11 +227,55 @@ class _MainAppState extends State<MainApp>
     Menu trayMenu = Menu(
       items: [
         MenuItem(key: 'show', label: '显示窗口'),
+        MenuItem(
+          key: 'toggle_play_page_on_top',
+          label: _playPageOnTopLabel,
+          checked: _isPlayPageOnTop,
+        ),
         MenuItem.separator(),
         MenuItem(key: 'exit', label: '退出 ${Constants.appName}'),
       ],
     );
     await trayManager.setContextMenu(trayMenu);
+  }
+
+  String get _playPageOnTopLabel {
+    final prefix = _isPlayPageOnTop ? '✅ ' : '';
+    return '${prefix}播放页置顶';
+  }
+
+  bool get _isPlayPageOnTop => Pref.usePlayerWindow
+      ? Pref.playerWindowAlwaysOnTop
+      : Pref.mainWindowAlwaysOnTop;
+
+  Future<void> _togglePlayPageAlwaysOnTop() async {
+    final usePlayer = Pref.usePlayerWindow;
+    final next = !_isPlayPageOnTop;
+    final key = usePlayer
+        ? SettingBoxKey.playerWindowAlwaysOnTop
+        : SettingBoxKey.mainWindowAlwaysOnTop;
+
+    await _setting.put(key, next);
+
+    if (usePlayer) {
+      try {
+        final controller = await PlayerWindowService.instance
+            .findPlayerWindow();
+        if (controller != null) {
+          await controller.setAlwaysOnTop(next);
+        }
+      } catch (_) {}
+    } else {
+      await windowManager.setAlwaysOnTop(next);
+    }
+
+    await _refreshTrayMenu();
+  }
+
+  Future<void> _refreshTrayMenu() async {
+    if (_mainController.showTrayIcon) {
+      await _handleTray();
+    }
   }
 
   void onBack() {

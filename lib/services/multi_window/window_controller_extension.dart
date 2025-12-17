@@ -24,6 +24,10 @@ extension WindowControllerExtension on WindowController {
           return await windowManager.maximize();
         case 'window_restore':
           return await windowManager.restore();
+        case 'window_set_always_on_top':
+          final args = call.arguments as Map?;
+          final isOn = args?['isOn'] as bool? ?? false;
+          return await windowManager.setAlwaysOnTop(isOn);
         default:
           throw MissingPluginException(
             'Not implemented method: ${call.method}',
@@ -52,6 +56,10 @@ extension WindowControllerExtension on WindowController {
           return await windowManager.maximize();
         case 'window_restore':
           return await windowManager.restore();
+        case 'window_set_always_on_top':
+          final args = call.arguments as Map?;
+          final isOn = args?['isOn'] as bool? ?? false;
+          return await windowManager.setAlwaysOnTop(isOn);
         default:
           throw MissingPluginException(
             'Not implemented method: ${call.method}',
@@ -98,5 +106,12 @@ extension WindowControllerExtension on WindowController {
   /// 恢复目标窗口
   Future<void> restore() {
     return invokeMethod('window_restore');
+  }
+
+  /// 设置窗口置顶
+  Future<void> setAlwaysOnTop(bool isOn) {
+    return invokeMethod('window_set_always_on_top', {
+      'isOn': isOn,
+    });
   }
 }

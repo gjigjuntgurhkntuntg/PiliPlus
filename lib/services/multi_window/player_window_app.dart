@@ -77,6 +77,9 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
       }
       await windowManager.show();
       await windowManager.focus();
+      if (Pref.playerWindowAlwaysOnTop) {
+        await windowManager.setAlwaysOnTop(true);
+      }
     });
 
     windowManager.addListener(this);

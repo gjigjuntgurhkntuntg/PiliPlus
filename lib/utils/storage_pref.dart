@@ -903,6 +903,14 @@ abstract class Pref {
   static bool get usePlayerWindow =>
       _setting.get(SettingBoxKey.usePlayerWindow, defaultValue: false);
 
+  static bool get mainWindowAlwaysOnTop =>
+      _setting.get(SettingBoxKey.mainWindowAlwaysOnTop, defaultValue: false);
+
+  static bool get playerWindowAlwaysOnTop => _setting.get(
+    SettingBoxKey.playerWindowAlwaysOnTop,
+    defaultValue: false,
+  );
+
   static Size get playerWindowSize {
     final List<double>? size =
         (_setting.get(SettingBoxKey.playerWindowSize) as List?)

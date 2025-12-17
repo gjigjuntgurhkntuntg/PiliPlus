@@ -160,7 +160,9 @@ abstract class SettingBoxKey {
       showTrayIcon = 'showTrayIcon',
       usePlayerWindow = 'usePlayerWindow',
       playerWindowSize = 'playerWindowSize',
-      playerWindowPosition = 'playerWindowPosition';
+      playerWindowPosition = 'playerWindowPosition',
+      mainWindowAlwaysOnTop = 'mainWindowAlwaysOnTop',
+      playerWindowAlwaysOnTop = 'playerWindowAlwaysOnTop';
 
   static const String subtitlePreferenceV2 = 'subtitlePreferenceV2',
       enableDragSubtitle = 'enableDragSubtitle',

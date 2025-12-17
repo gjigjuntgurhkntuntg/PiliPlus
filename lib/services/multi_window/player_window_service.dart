@@ -114,6 +114,7 @@ class PlayerWindowService {
         Pref.playerWindowSize.height,
       ],
       'playerWindowPosition': Pref.playerWindowPosition,
+      'playerWindowAlwaysOnTop': Pref.playerWindowAlwaysOnTop,
       // Export all settings for sub-window in-memory storage
       'allSettings': _exportAllSettingsAsJson(),
       // Export account data for sub-window

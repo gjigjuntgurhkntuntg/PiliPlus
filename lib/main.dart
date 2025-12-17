@@ -268,6 +268,9 @@ void main() async {
       if (Pref.isWindowMaximized) await windowManager.maximize();
       await windowManager.show();
       await windowManager.focus();
+      if (Pref.mainWindowAlwaysOnTop) {
+        await windowManager.setAlwaysOnTop(true);
+      }
     });
   }
 

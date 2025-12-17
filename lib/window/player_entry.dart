@@ -8,6 +8,7 @@ import 'package:PiliPlus/pages/video/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/player_window_manager.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
+import 'package:PiliPlus/services/multi_window/window_controller_extension.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -73,6 +74,7 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
   late final int _schemeVariant;
   late final ThemeMode _themeMode;
   late final double _textScale;
+  late bool _alwaysOnTop;
 
   @override
   void initState() {
@@ -121,10 +123,16 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     _schemeVariant = _settings?['schemeVariant'] as int? ?? 0;
     _themeMode = ThemeMode.values[_settings?['themeMode'] as int? ?? 0];
     _textScale = (_settings?['defaultTextScale'] as num?)?.toDouble() ?? 1.0;
+    _alwaysOnTop = _settings?['playerWindowAlwaysOnTop'] as bool? ?? false;
   }
 
   Future<void> _initWindow() async {
     await windowManager.ensureInitialized();
+
+    try {
+      final controller = await WindowController.fromCurrentEngine();
+      await controller.doCustomInitialize();
+    } catch (_) {}
 
     WindowOptions windowOptions = WindowOptions(
       size: _windowSize,
@@ -148,6 +156,9 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
       }
       await windowManager.show();
       await windowManager.focus();
+      if (_alwaysOnTop) {
+        await windowManager.setAlwaysOnTop(true);
+      }
     });
 
     windowManager.addListener(this);
