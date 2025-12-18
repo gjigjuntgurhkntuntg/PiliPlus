@@ -13,13 +13,32 @@ try {
     $updatedContent = foreach ($line in (Get-Content -Path 'pubspec.yaml' -Encoding UTF8)) {
         if ($line -match '^\s*version:\s*([\d\.]+)') {
             if (-not [string]::IsNullOrEmpty($Tag)) {
+                $suffix = $null
+                $baseTag = $Tag
+
                 if ($Tag -match '\+') {
                     $parts = $Tag -split '\+', 2
-                    $versionName = $parts[0]
-                    $versionCode = $parts[1]
+                    $baseTag = $parts[0]
+                    $suffix = $parts[1]
+                }
+                elseif ($Tag -match '-') {
+                    $parts = $Tag -split '-', 2
+                    $baseTag = $parts[0]
+                    $suffix = $parts[1]
+                }
+
+                if ($baseTag -match '^v?(\d+)\.(\d+)\.(\d+)') {
+                    $versionName = "$($matches[1]).$($matches[2]).$($matches[3])"
+                }
+                elseif ($baseTag -match '^v?(\d+)\.(\d+)') {
+                    $versionName = "$($matches[1]).$($matches[2]).0"
                 }
                 else {
-                    $versionName = $Tag
+                    $versionName = $baseTag
+                }
+
+                if (-not [string]::IsNullOrEmpty($suffix)) {
+                    $versionName = "$versionName-$suffix"
                 }
             }
             else {
@@ -27,19 +46,6 @@ try {
                 if ($Arg -eq 'android') {
                     $versionName += '-' + $commitHash.Substring(0, 9)
                 }
-            }
-
-            if ($versionName -match '^(\d+)\.(\d+)\.(\d+)(\..+)$') {
-                $versionName = "$($matches[1]).$($matches[2]).$($matches[3])"
-                $extra = $matches[4].TrimStart('.')
-                if (-not [string]::IsNullOrEmpty($versionCode)) {
-                    $versionCode = "$extra.$versionCode"
-                } else {
-                    $versionCode = $extra
-                }
-            }
-            elseif ($versionName -match '^(\d+)\.(\d+)$') {
-                $versionName = "$($matches[1]).$($matches[2]).0"
             }
 
             "version: $versionName+$versionCode"
