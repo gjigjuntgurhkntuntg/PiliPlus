@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
@@ -83,6 +84,14 @@ class VideoPopupMenu extends StatelessWidget {
                           '离线缓存',
                           const Icon(MdiIcons.folderDownloadOutline, size: 16),
                           () async {
+                            final confirmed = await showConfirmDialog(
+                              context: context,
+                              title: '确认缓存该视频？',
+                              content: '将把此视频加入离线下载队列。',
+                            );
+                            if (!confirmed) {
+                              return;
+                            }
                             try {
                               SmartDialog.showLoading(msg: '任务创建中');
                               if (videoItem.duration <= 0) {

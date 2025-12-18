@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
+import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/video_progress_indicator.dart';
 import 'package:PiliPlus/common/widgets/select_mask.dart';
@@ -239,6 +240,14 @@ class HistoryItem extends StatelessWidget {
                         if (Pref.showMoreDownloadButtons)
                           PopupMenuItem<String>(
                             onTap: () async {
+                              final confirmed = await showConfirmDialog(
+                                context: context,
+                                title: '确认缓存该视频？',
+                                content: '将把此视频加入离线下载队列。',
+                              );
+                              if (!confirmed) {
+                                return;
+                              }
                               try {
                                 SmartDialog.showLoading(msg: '任务创建中');
                                 int? cid = await SearchHttp.ab2c(

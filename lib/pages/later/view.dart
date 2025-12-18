@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/appbar/appbar.dart';
+import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/models/common/later_view_type.dart';
@@ -207,8 +208,15 @@ class _LaterPageState extends State<LaterPage>
               visualDensity: VisualDensity.compact,
             ),
             onPressed: () async {
-              final ctr = currCtr();
-              await ctr.batchDownloadSelected();
+              final confirmed = await showConfirmDialog(
+                context: context,
+                title: '确认缓存选中项？',
+                content: '将把选中的视频加入离线下载队列。',
+              );
+              if (confirmed) {
+                final ctr = currCtr();
+                await ctr.batchDownloadSelected();
+              }
             },
             child: Text(
               '缓存',

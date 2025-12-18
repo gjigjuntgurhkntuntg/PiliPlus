@@ -1017,7 +1017,7 @@ class HeaderControlState extends State<HeaderControl>
                 if (!isFileSource)
                   ListTile(
                     dense: true,
-                    onTap: () {
+                    onTap: () async {
                       Get.back();
                       videoDetailCtr.onDownload(this.context);
                     },

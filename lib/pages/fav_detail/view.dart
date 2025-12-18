@@ -355,7 +355,14 @@ class _FavDetailPageState extends State<FavDetailPage> with GridMixin {
           visualDensity: VisualDensity.compact,
         ),
         onPressed: () async {
-          await _favDetailController.batchDownloadSelected();
+          final confirmed = await showConfirmDialog(
+            context: context,
+            title: '确认缓存选中项？',
+            content: '将把选中的视频加入离线下载队列。',
+          );
+          if (confirmed) {
+            await _favDetailController.batchDownloadSelected();
+          }
         },
         child: Text(
           '缓存',

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
 import 'package:PiliPlus/common/widgets/flutter/dyn/ink_well.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
@@ -339,6 +340,17 @@ class AuthorPanel extends StatelessWidget {
                         }
 
                         return null;
+                      }
+
+                      Get.back();
+
+                      final confirmed = await showConfirmDialog(
+                        context: context,
+                        title: '确认缓存该视频？',
+                        content: '将把此视频加入离线下载队列。',
+                      );
+                      if (!confirmed) {
+                        return;
                       }
 
                       // try to extract aid/cover/title from the dynamic major
