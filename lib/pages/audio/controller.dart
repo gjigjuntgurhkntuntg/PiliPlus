@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
@@ -32,6 +33,7 @@ import 'package:PiliPlus/pages/video/introduction/ugc/widgets/triple_mixin.dart'
 import 'package:PiliPlus/pages/video/pay_coins/view.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/extension.dart';
@@ -41,12 +43,16 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
+import 'package:audio_service/audio_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class AudioController extends GetxController
     with GetTickerProviderStateMixin, TripleMixin, FavMixin {
@@ -99,6 +105,11 @@ class AudioController extends GetxController
   late final List<Color> blockColor = Pref.blockColor;
   StreamSubscription<Duration>? _sponsorBlockSubscription;
   int _lastPos = -1;
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  Timer? _playUrlRetryTimer;
+  int _playUrlRetryCount = 0;
+  static const int _maxPlayUrlRetry = 2;
 
   @override
   void onInit() {
@@ -236,19 +247,49 @@ class AudioController extends GetxController
   Future<bool> _queryPlayUrl() async {
     // 查询空降助手
     if (enableSponsorBlock && isVideo) {
-      _querySponsorBlock();
+      try {
+        await _querySponsorBlock();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('AudioController: sponsor block query failed: $e');
+        }
+      }
     }
 
-    final res = await AudioGrpc.audioPlayUrl(
-      itemType: itemType,
-      oid: oid,
-      subId: subId,
-    );
-    if (res.isSuccess) {
-      _onPlay(res.data);
-      return true;
-    } else {
-      res.toast();
+    try {
+      final res = await AudioGrpc.audioPlayUrl(
+        itemType: itemType,
+        oid: oid,
+        subId: subId,
+      );
+      if (res.isSuccess) {
+        _resetPlayUrlRetry();
+        _onPlay(res.data);
+        return true;
+      } else {
+        res.toast();
+        return false;
+      }
+    } on DioException catch (e) {
+      final needRetry =
+          e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.unknown && e.error is SocketException;
+      await _logBackgroundDiagnostics('playUrl dio', e);
+      if (needRetry) {
+        _schedulePlayUrlRetry();
+      } else {
+        SmartDialog.showToast('音频播放地址获取失败');
+      }
+      if (kDebugMode) {
+        debugPrint('AudioController: play url query failed: $e');
+      }
+      return false;
+    } catch (e) {
+      await _logBackgroundDiagnostics('playUrl other', e);
+      if (kDebugMode) {
+        debugPrint('AudioController: play url query failed (unexpected): $e');
+      }
+      SmartDialog.showToast('音频播放地址获取失败');
       return false;
     }
   }
@@ -516,6 +557,75 @@ class AudioController extends GetxController
         }
       }
     });
+  }
+
+  void _resetPlayUrlRetry() {
+    _playUrlRetryTimer?.cancel();
+    _playUrlRetryTimer = null;
+    _playUrlRetryCount = 0;
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
+  }
+
+  void _schedulePlayUrlRetry() {
+    if (_playUrlRetryCount >= _maxPlayUrlRetry) {
+      return;
+    }
+    _playUrlRetryCount += 1;
+    _playUrlRetryTimer?.cancel();
+    final delay = Duration(seconds: 1 + _playUrlRetryCount);
+    _playUrlRetryTimer = Timer(delay, () async {
+      final status = await _connectivity.checkConnectivity();
+      if (!status.contains(ConnectivityResult.none)) {
+        _queryPlayUrl();
+        return;
+      }
+      _connectivitySubscription?.cancel();
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+        (event) {
+          if (!event.contains(ConnectivityResult.none)) {
+            _connectivitySubscription?.cancel();
+            _connectivitySubscription = null;
+            _queryPlayUrl();
+          }
+        },
+      );
+    });
+  }
+
+  Future<void> _logBackgroundDiagnostics(String tag, Object? error) async {
+    try {
+      final connectivity = await _connectivity.checkConnectivity();
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final screenOn = await WakelockPlus.enabled;
+        final handlerState = videoPlayerServiceHandler?.playbackState.value;
+        final handlerProcessing =
+          handlerState?.processingState ?? AudioProcessingState.idle;
+      final bgPlayEnabled = videoPlayerServiceHandler?.enableBackgroundPlay;
+      final bgPref = Pref.continuePlayInBackground;
+      final heroBg = _videoDetailController
+          ?.plPlayerController.continuePlayInBackground.value;
+
+      debugPrint(
+        'AudioController diag[$tag]: error=$error | '
+        'connectivity=$connectivity | lifecycle=$lifecycle | '
+        'screenOn=$screenOn | handlerPlaying=${handlerState?.playing} '
+        'state=$handlerProcessing | '
+        'enableBgPlay=$bgPlayEnabled | prefBg=$bgPref | heroBg=$heroBg',
+      );
+      logger.e(
+        'AudioController diag[$tag]: error=$error | '
+        'connectivity=$connectivity | lifecycle=$lifecycle | '
+        'screenOn=$screenOn | handlerPlaying=${handlerState?.playing} '
+        'state=$handlerProcessing | '
+        'enableBgPlay=$bgPlayEnabled | prefBg=$bgPref | heroBg=$heroBg',
+        error: error,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('AudioController diag failed: $e');
+      }
+    }
   }
 
   Future<void> _onSkip(SegmentModel item) async {
@@ -864,10 +974,11 @@ class AudioController extends GetxController
         subId ??
         (item.subId.isNotEmpty ? item.subId : [audioItem.parts.first.subId]);
     itemType = item.itemType;
+    _resetPlayUrlRetry();
+    _updateCurrItem(audioItem);
     _queryPlayUrl().then((res) {
       if (res) {
         _videoDetailController = null;
-        _updateCurrItem(audioItem);
       }
     });
   }
@@ -942,6 +1053,8 @@ class AudioController extends GetxController
     _subscriptions = null;
     _sponsorBlockSubscription?.cancel();
     _sponsorBlockSubscription = null;
+    _connectivitySubscription?.cancel();
+    _playUrlRetryTimer?.cancel();
     player?.dispose();
     player = null;
     animController.dispose();
