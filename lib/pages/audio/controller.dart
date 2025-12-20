@@ -110,7 +110,6 @@ class AudioController extends GetxController
   int _lastPos = -1;
   bool _fgStartedForCurrent = false;
   bool _isLocalPlayback = false;
-  BiliDownloadEntryInfo? _localEntry;
 
   @override
   void onInit() {
@@ -305,7 +304,6 @@ class AudioController extends GetxController
       return false;
     }
 
-    _localEntry = local;
     _isLocalPlayback = true;
     duration.value = Duration(milliseconds: local.totalTimeMilli);
     _onOpenMedia(audioPath, ua: '', referer: null);
@@ -347,7 +345,8 @@ class AudioController extends GetxController
   }) {
     // 切换媒资时重置本地播放标记
     if (!_isLocalPlayback) {
-      _localEntry = null;
+      // 非本地播放路径，确保标记清空
+      _isLocalPlayback = false;
     }
     _fgStartedForCurrent = false;
     PlaybackForegroundService.stop();
@@ -973,7 +972,6 @@ class AudioController extends GetxController
     if (index == this.index && subId == null) return;
     this.index = index;
     _isLocalPlayback = false;
-    _localEntry = null;
     final audioItem = playlist![index];
     final item = audioItem.item;
     oid = item.oid;
