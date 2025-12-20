@@ -6,7 +6,7 @@ import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
-import 'package:PiliPlus/utils/utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
@@ -91,10 +91,10 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
     String? bvid = video.bvid;
 
     return MouseRegion(
-      onEnter: Utils.isMobile
+      onEnter: PlatformUtils.isMobile
           ? null
           : (_) => setState(() => _isHovering = true),
-      onExit: Utils.isMobile
+      onExit: PlatformUtils.isMobile
           ? null
           : (_) => setState(() => _isHovering = false),
       child: Padding(
@@ -126,7 +126,7 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                       },
                     ),
                   // 桌面端悬停显示稍后再看按钮（排除番剧类型）
-                  if (!Utils.isMobile &&
+                  if (!PlatformUtils.isMobile &&
                       _isHovering &&
                       bvid != null &&
                       item.type != 'DYNAMIC_TYPE_PGC' &&

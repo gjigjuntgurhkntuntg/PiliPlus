@@ -6,7 +6,7 @@ import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 
-abstract class Accounts {
+abstract final class Accounts {
   static late Box<LoginAccount> account;
   static final List<Account> accountMode = List.filled(
     AccountType.values.length,

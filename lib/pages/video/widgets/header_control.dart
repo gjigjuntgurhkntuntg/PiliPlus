@@ -39,9 +39,10 @@ import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
-import 'package:PiliPlus/utils/extension.dart';
+import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -1436,13 +1437,10 @@ class HeaderControlState extends State<HeaderControl>
       context: context,
       builder: (context) {
         final state = player.state;
+        final colorScheme = ColorScheme.of(context);
         return AlertDialog(
           title: const Text('播放信息'),
           contentPadding: const EdgeInsets.only(top: 16),
-          constraints: const BoxConstraints(
-            minWidth: 280,
-            maxWidth: 425,
-          ),
           content: Material(
             type: MaterialType.transparency,
             child: ListTileTheme(
@@ -1562,7 +1560,7 @@ class HeaderControlState extends State<HeaderControl>
               onPressed: Get.back,
               child: Text(
                 '确定',
-                style: TextStyle(color: Get.theme.colorScheme.outline),
+                style: TextStyle(color: colorScheme.outline),
               ),
             ),
           ],
@@ -2535,7 +2533,7 @@ class HeaderControlState extends State<HeaderControl>
                       plPlayerController.exitDesktopPip();
                     } else if (isFullScreen) {
                       plPlayerController.triggerFullScreen(status: false);
-                    } else if (Utils.isMobile &&
+                    } else if (PlatformUtils.isMobile &&
                         !horizontalScreen &&
                         !isPortrait) {
                       verticalScreenForTwoSeconds();
@@ -2571,6 +2569,33 @@ class HeaderControlState extends State<HeaderControl>
               title,
               // show current datetime
               ...?timeBatteryWidgets,
+              if (PlatformUtils.isDesktop && !plPlayerController.isDesktopPip)
+                Obx(() {
+                  final isAlwaysOnTop = plPlayerController.isAlwaysOnTop.value;
+                  return SizedBox(
+                    width: 42,
+                    height: 34,
+                    child: IconButton(
+                      tooltip: '${isAlwaysOnTop ? '取消' : ''}置顶',
+                      style: const ButtonStyle(
+                        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                      ),
+                      onPressed: () =>
+                          plPlayerController.setAlwaysOnTop(!isAlwaysOnTop),
+                      icon: isAlwaysOnTop
+                          ? const Icon(
+                              size: 19,
+                              Icons.push_pin,
+                              color: Colors.white,
+                            )
+                          : const Icon(
+                              size: 19,
+                              Icons.push_pin_outlined,
+                              color: Colors.white,
+                            ),
+                    ),
+                  );
+                }),
               if (!isFileSource) ...[
                 if (!isFSOrPip) ...[
                   if (videoDetailCtr.isUgc)
@@ -2657,7 +2682,7 @@ class HeaderControlState extends State<HeaderControl>
                       : const SizedBox.shrink(),
                 ),
               ],
-              if (isFSOrPip || Utils.isDesktop) ...[
+              if (isFullScreen || PlatformUtils.isDesktop) ...[
                 if (!videoDetailCtr.isFileSource)
                   SizedBox(
                     width: 42,
@@ -2713,7 +2738,8 @@ class HeaderControlState extends State<HeaderControl>
                   ),
                 ),
               ],
-              if (Platform.isAndroid || (Utils.isDesktop && !isFullScreen))
+              if (Platform.isAndroid ||
+                  (PlatformUtils.isDesktop && !isFullScreen))
                 SizedBox(
                   width: 42,
                   height: 34,
@@ -2723,7 +2749,7 @@ class HeaderControlState extends State<HeaderControl>
                       padding: WidgetStatePropertyAll(EdgeInsets.zero),
                     ),
                     onPressed: () async {
-                      if (Utils.isDesktop) {
+                      if (PlatformUtils.isDesktop) {
                         plPlayerController.toggleDesktopPip();
                         return;
                       }

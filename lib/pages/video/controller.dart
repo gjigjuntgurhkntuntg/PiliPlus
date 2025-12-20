@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' show min;
 import 'dart:ui';
 
+import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pbenum.dart'
@@ -31,7 +32,6 @@ import 'package:PiliPlus/models/model_owner.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/fav/fav_detail/cnt_info.dart';
-import 'package:PiliPlus/models_new/media_list/data.dart';
 import 'package:PiliPlus/models_new/media_list/media_list.dart';
 import 'package:PiliPlus/models_new/media_list/page.dart' as media_list;
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
@@ -40,7 +40,6 @@ import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/models_new/video/video_pbp/data.dart';
-import 'package:PiliPlus/models_new/video/video_play_info/data.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
@@ -60,10 +59,12 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/context_ext.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
-import 'package:PiliPlus/utils/extension.dart';
+import 'package:PiliPlus/utils/extension/context_ext.dart';
+import 'package:PiliPlus/utils/extension/iterable_ext.dart';
+import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -214,7 +215,7 @@ class VideoDetailController extends GetxController
     String? title,
     String? subTitle,
   }) async {
-    if (!Utils.isDesktop || !PlayerWindowService.isPlayerWindow) return;
+    if (!PlatformUtils.isDesktop || !PlayerWindowService.isPlayerWindow) return;
     final base = title?.trim();
     if (base == null || base.isEmpty) return;
 
@@ -519,11 +520,10 @@ class VideoDetailController extends GetxController
           ? true
           : false,
     );
-    if (res['status']) {
-      MediaListData data = res['data'];
-      if (data.mediaList.isNotEmpty) {
+    if (res case Success(:final response)) {
+      if (response.mediaList.isNotEmpty) {
         if (isReverse) {
-          mediaList.value = data.mediaList;
+          mediaList.value = response.mediaList;
           for (var item in mediaList) {
             if (item.cid != null) {
               try {
@@ -535,13 +535,13 @@ class VideoDetailController extends GetxController
             }
           }
         } else if (isLoadPrevious) {
-          mediaList.insertAll(0, data.mediaList);
+          mediaList.insertAll(0, response.mediaList);
         } else {
-          mediaList.addAll(data.mediaList);
+          mediaList.addAll(response.mediaList);
         }
       }
     } else {
-      SmartDialog.showToast(res['msg']);
+      res.toast();
     }
   }
 
@@ -592,11 +592,11 @@ class VideoDetailController extends GetxController
                     resources: '${item.aid}:${item.type}',
                     delIds: '${args['mediaId']}',
                   );
-                  if (res['status']) {
+                  if (res.isSuccess) {
                     mediaList.removeAt(index);
                     SmartDialog.showToast('取消收藏');
                   } else {
-                    SmartDialog.showToast(res['msg']);
+                    res.toast();
                   }
                 }
               }
@@ -1267,7 +1267,7 @@ class VideoDetailController extends GetxController
     }
   }
 
-  ({int mode, int fontsize, Color color})? dmConfig;
+  ({int mode, int fontSize, Color color})? dmConfig;
   String? savedDanmaku;
 
   /// 发送弹幕
@@ -1280,7 +1280,7 @@ class VideoDetailController extends GetxController
     if (isPlaying) {
       await plPlayerController.pause();
     }
-    await Navigator.of(Get.context!).push(
+    await Get.key.currentState!.push(
       GetDialogRoute(
         pageBuilder: (buildContext, animation, secondaryAnimation) {
           return SendDanmakuPanel(
@@ -1289,7 +1289,7 @@ class VideoDetailController extends GetxController
             progress: plPlayerController.position.value.inMilliseconds,
             initialValue: savedDanmaku,
             onSave: (danmaku) => savedDanmaku = danmaku,
-            callback: (danmakuModel) {
+            onSuccess: (danmakuModel) {
               savedDanmaku = null;
               plPlayerController.danmakuController?.addDanmaku(danmakuModel);
             },
@@ -1448,7 +1448,7 @@ class VideoDetailController extends GetxController
       seasonId: isUgc ? null : seasonId,
       pgcType: isUgc ? null : pgcType,
       videoType: videoType,
-      callback: () async {
+      onInit: () async {
         if (videoState.value is! Success) {
           videoState.value = const Success(null);
         }
@@ -1892,14 +1892,13 @@ class VideoDetailController extends GetxController
       seasonId: seasonId,
       epId: epId,
     );
-    if (res['status']) {
-      PlayInfoData playInfo = res['data'];
+    if (res case Success(:final response)) {
       // interactive video
       if (isUgc && graphVersion == null) {
         try {
           final introCtr = Get.find<UgcIntroController>(tag: heroTag);
           if (introCtr.videoDetail.value.rights?.isSteinGate == 1) {
-            graphVersion = playInfo.interaction?.graphVersion;
+            graphVersion = response.interaction?.graphVersion;
             getSteinEdgeInfo();
           }
         } catch (e) {
@@ -1914,11 +1913,11 @@ class VideoDetailController extends GetxController
             tag: heroTag,
           );
           if ((ugcIntroController.videoDetail.value.pages?.length ?? 0) > 1 &&
-              playInfo.lastPlayCid != null &&
-              playInfo.lastPlayCid != 0) {
-            if (playInfo.lastPlayCid != cid.value) {
+              response.lastPlayCid != null &&
+              response.lastPlayCid != 0) {
+            if (response.lastPlayCid != cid.value) {
               int index = ugcIntroController.videoDetail.value.pages!
-                  .indexWhere((item) => item.cid == playInfo.lastPlayCid);
+                  .indexWhere((item) => item.cid == response.lastPlayCid);
               if (index != -1) {
                 onAddItem(index);
               }
@@ -1928,9 +1927,9 @@ class VideoDetailController extends GetxController
       }
 
       if (plPlayerController.showViewPoints &&
-          playInfo.viewPoints?.firstOrNull?.type == 2) {
+          response.viewPoints?.firstOrNull?.type == 2) {
         try {
-          viewPointList.value = playInfo.viewPoints!.map((item) {
+          viewPointList.value = response.viewPoints!.map((item) {
             double start = (item.to! / (data.timeLength! / 1000)).clamp(
               0.0,
               1.0,
@@ -1948,8 +1947,8 @@ class VideoDetailController extends GetxController
         } catch (_) {}
       }
 
-      if (playInfo.subtitle?.subtitles?.isNotEmpty == true) {
-        subtitles.value = playInfo.subtitle!.subtitles!;
+      if (response.subtitle?.subtitles?.isNotEmpty == true) {
+        subtitles.value = response.subtitle!.subtitles!;
 
         final idx = switch (SubtitlePrefType.values[Pref
             .subtitlePreferenceV2]) {
@@ -1959,7 +1958,7 @@ class VideoDetailController extends GetxController
             subtitles.first.lan.startsWith('ai') ? 0 : 1,
           SubtitlePrefType.auto =>
             !subtitles.first.lan.startsWith('ai') ||
-                    (Utils.isMobile &&
+                    (PlatformUtils.isMobile &&
                         (await FlutterVolumeController.getVolume() ?? 0.0) <=
                             0.0)
                 ? 1
@@ -2250,7 +2249,9 @@ class VideoDetailController extends GetxController
         (e) => e.cid == (seasonCid ?? cid.value),
       );
       final size = context.mediaQuerySize;
-      final maxChildSize = Utils.isMobile && !size.isPortrait ? 1.0 : 0.7;
+      final maxChildSize = PlatformUtils.isMobile && !size.isPortrait
+          ? 1.0
+          : 0.7;
       showModalBottomSheet(
         context: context,
         useSafeArea: true,
@@ -2299,7 +2300,7 @@ class VideoDetailController extends GetxController
     showDialog(
       context: Get.context!,
       builder: (context) => AlertDialog(
-        constraints: const BoxConstraints(maxWidth: 425, minWidth: 425),
+        constraints: StyleString.dialogFixedConstraints,
         title: const Text('播放地址'),
         content: Column(
           spacing: 20,

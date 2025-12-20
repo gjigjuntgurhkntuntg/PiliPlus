@@ -14,8 +14,8 @@ import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -100,7 +100,7 @@ class HistoryItem extends StatelessWidget {
                 }
               },
         onLongPress: onLongPress,
-        onSecondaryTap: Utils.isMobile ? null : onLongPress,
+        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -167,7 +167,7 @@ class HistoryItem extends StatelessWidget {
                                 ),
                               ),
                             Positioned.fill(
-                              child: selectMask(theme, item.checked == true),
+                              child: selectMask(theme, item.checked),
                             ),
                           ],
                         );

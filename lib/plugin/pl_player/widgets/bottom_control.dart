@@ -4,7 +4,7 @@ import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/view.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
-import 'package:PiliPlus/utils/utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -56,9 +56,6 @@ class BottomControl extends StatelessWidget {
       final child = Obx(() {
         final int value = controller.sliderPositionSeconds.value;
         final int max = controller.durationSeconds.value.inSeconds;
-        if (value > max || max <= 0) {
-          return const SizedBox.shrink();
-        }
         return ProgressBar(
           progress: Duration(seconds: value),
           buffered: Duration(seconds: controller.bufferedSeconds.value),
@@ -76,7 +73,7 @@ class BottomControl extends StatelessWidget {
           onSeek: (e) => onSeek(e, max),
         );
       });
-      if (Utils.isDesktop) {
+      if (PlatformUtils.isDesktop) {
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           child: child,
@@ -143,7 +140,7 @@ class BottomControl extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (!Utils.isMobile)
+                    if (!PlatformUtils.isMobile)
                       buildViewPointWidget(
                         videoDetailController,
                         controller,

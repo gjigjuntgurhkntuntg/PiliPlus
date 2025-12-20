@@ -15,7 +15,7 @@ import 'package:PiliPlus/models/search/result.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
-import 'package:PiliPlus/utils/utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
@@ -79,14 +79,18 @@ class _VideoCardHState extends State<VideoCardH> {
     return Material(
       type: MaterialType.transparency,
       child: MouseRegion(
-        onEnter: Utils.isMobile ? null : (_) => setState(() => _isHovering = true),
-        onExit: Utils.isMobile ? null : (_) => setState(() => _isHovering = false),
+        onEnter: PlatformUtils.isMobile
+            ? null
+            : (_) => setState(() => _isHovering = true),
+        onExit: PlatformUtils.isMobile
+            ? null
+            : (_) => setState(() => _isHovering = false),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             InkWell(
               onLongPress: onLongPress,
-              onSecondaryTap: Utils.isMobile ? null : onLongPress,
+              onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
               onTap:
                 onTap ??
                 () async {
@@ -198,7 +202,9 @@ class _VideoCardHState extends State<VideoCardH> {
                                 type: PBadgeType.gray,
                               ),
                             // 桌面端悬停显示稍后再看按钮
-                            if (!Utils.isMobile && _isHovering && videoItem.bvid != null)
+                              if (!PlatformUtils.isMobile &&
+                                  _isHovering &&
+                                  videoItem.bvid != null)
                               Positioned(
                                 top: 4,
                                 right: 4,

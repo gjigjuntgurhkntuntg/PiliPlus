@@ -16,7 +16,8 @@ import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/danmaku/controller.dart';
 import 'package:PiliPlus/services/download/download_foreground_service.dart';
 import 'package:PiliPlus/services/download/download_manager.dart';
-import 'package:PiliPlus/utils/extension.dart';
+import 'package:PiliPlus/utils/extension/file_ext.dart';
+import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -35,7 +36,7 @@ class DownloadService extends GetxService {
 
   final _lock = Lock();
 
-  final flagNotifier = <void Function()>{};
+  final flagNotifier = SetNotifier();
   final waitDownloadQueue = RxList<BiliDownloadEntryInfo>();
   final downloadList = <BiliDownloadEntryInfo>[];
 
@@ -718,7 +719,9 @@ class DownloadService extends GetxService {
   }
 }
 
-extension SetExt on Set<void Function()> {
+typedef SetNotifier = Set<VoidCallback>;
+
+extension SetNotifierExt on SetNotifier {
   void refresh() {
     for (var i in this) {
       i();

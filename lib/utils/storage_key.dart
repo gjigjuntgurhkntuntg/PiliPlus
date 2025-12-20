@@ -1,9 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
-abstract class SettingBoxKey {
+abstract final class SettingBoxKey {
   static const String btmProgressBehavior = 'btmProgressBehavior',
-      defaultVideoSpeed = 'defaultVideoSpeed',
-      autoUpgradeEnable = 'autoUpgradeEnable',
       defaultVideoQa = 'defaultVideoQa',
       defaultVideoQaCellular = 'defaultVideoQaCellular',
       defaultAudioQa = 'defaultAudioQa',
@@ -20,11 +18,10 @@ abstract class SettingBoxKey {
       hardwareDecoding = 'hardwareDecoding',
       videoSync = 'videoSync',
       p1080 = 'p1080',
-      enableAutoBrightness = 'enableAutoBrightness',
       enableAutoEnter = 'enableAutoEnter',
       enableAutoExit = 'enableAutoExit',
       enableOnlineTotal = 'enableOnlineTotal',
-      showSuperChat = 'showSuperChat',
+      superChatType = 'superChatType',
       keyboardControl = 'keyboardControl',
       pauseOnMinimize = 'pauseOnMinimize',
       pgcSkipType = 'pgcSkipType',
@@ -213,7 +210,6 @@ abstract class SettingBoxKey {
       defaultTextScale = 'textScale',
       dynamicColor = 'dynamicColor',
       customColor = 'customColor',
-      enableSingleRow = 'enableSingleRow',
       displayMode = 'displayMode',
       smallCardWidth = 'smallCardWidth',
       recommendCardWidth = 'recommendCardWidth',
@@ -231,15 +227,13 @@ abstract class SettingBoxKey {
       dynamicBadgeMode = 'dynamicBadgeMode',
       msgBadgeMode = 'msgBadgeMode',
       msgUnReadTypeV2 = 'msgUnReadTypeV2',
-      hiddenSettingUnlocked = 'hiddenSettingUnlocked',
-      enableGradientBg = 'enableGradientBg',
       navBarSort = 'navBarSort',
       tempPlayerConf = 'tempPlayerConf',
       reduceLuxColor = 'reduceLuxColor',
       liveCdnUrl = 'liveCdnUrl';
 }
 
-abstract class LocalCacheKey {
+abstract final class LocalCacheKey {
   static const String historyPause = 'historyPause',
       blackMids = 'blackMids',
       danmakuFilterRules = 'danmakuFilterRules',
@@ -248,11 +242,8 @@ abstract class LocalCacheKey {
       buvid = 'buvid';
 }
 
-abstract class VideoBoxKey {
-  static const String videoFit = 'videoFit',
-      videoBrightness = 'videoBrightness',
-      videoSpeed = 'videoSpeed',
-      playRepeat = 'playRepeat',
+abstract final class VideoBoxKey {
+  static const String playRepeat = 'playRepeat',
       playSpeedDefault = 'playSpeedDefault',
       longPressSpeedDefault = 'longPressSpeedDefault',
       speedsList = 'speedsList',

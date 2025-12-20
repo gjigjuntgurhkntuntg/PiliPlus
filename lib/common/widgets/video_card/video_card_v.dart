@@ -14,6 +14,7 @@ import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -93,12 +94,12 @@ class _VideoCardVState extends State<VideoCardV> {
         Card(
           clipBehavior: Clip.hardEdge,
           child: MouseRegion(
-            onEnter: Utils.isMobile ? null : (_) => setState(() => _isHovering = true),
-            onExit: Utils.isMobile ? null : (_) => setState(() => _isHovering = false),
+            onEnter: PlatformUtils.isMobile ? null : (_) => setState(() => _isHovering = true),
+            onExit: PlatformUtils.isMobile ? null : (_) => setState(() => _isHovering = false),
             child: InkWell(
               onTap: () => onPushDetail(Utils.makeHeroTag(videoItem.aid)),
               onLongPress: onLongPress,
-              onSecondaryTap: Utils.isMobile ? null : onLongPress,
+              onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -128,7 +129,7 @@ class _VideoCardVState extends State<VideoCardV> {
                                 ),
                               ),
                             // 桌面端悬停显示稍后再看按钮
-                            if (!Utils.isMobile && _isHovering && videoItem.goto == 'av' && videoItem.bvid != null)
+                            if (!PlatformUtils.isMobile && _isHovering && videoItem.goto == 'av' && videoItem.bvid != null)
                               Positioned(
                                 top: 4,
                                 right: 4,

@@ -52,13 +52,14 @@ import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/services/shutdown_timer_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/extension.dart';
+import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
+import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
-import 'package:PiliPlus/utils/utils.dart';
 import 'package:auto_orientation/auto_orientation.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:floating/floating.dart';
@@ -325,7 +326,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       }
 
       // 播放完成且不会继续播放时，清理媒体通知卡片
-      if (Utils.isMobile && !notExitFlag) {
+      if (PlatformUtils.isMobile && !notExitFlag) {
         videoPlayerServiceHandler?.clear(force: true);
       }
     }
@@ -414,7 +415,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     }
     PageUtils.routeObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
-    if (Utils.isMobile) {
+    if (PlatformUtils.isMobile) {
       showStatusBar();
       // 退出播放时清理媒体服务
       videoPlayerServiceHandler?.clear(force: true);
@@ -584,7 +585,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     videoDetailController.animationController
       ..removeListener(animListener)
       ..addListener(animListener);
-    if (Utils.isMobile && mounted && isShowing && !isFullScreen) {
+    if (PlatformUtils.isMobile && mounted && isShowing && !isFullScreen) {
       if (isPortrait) {
         if (!videoDetailController.imageview) {
           showStatusBar();
@@ -593,7 +594,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         hideStatusBar();
       }
     }
-    if (Utils.isMobile) {
+    if (PlatformUtils.isMobile) {
       if (!isPortrait &&
           !isFullScreen &&
           plPlayerController != null &&
@@ -926,7 +927,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll && Utils.isDesktop)
+                        if (videoDetailController.isPlayAll &&
+                            PlatformUtils.isDesktop)
                           mediaListTab(),
                         videoIntro(
                           isHorizontal: false,
@@ -997,7 +999,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll && Utils.isDesktop)
+                        if (videoDetailController.isPlayAll &&
+                            PlatformUtils.isDesktop)
                           mediaListTab(),
                         videoIntro(
                           width: introWidth,
@@ -1068,7 +1071,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                         controller: videoDetailController.tabCtr,
                         children: [
                           if (videoDetailController.isPlayAll &&
-                              Utils.isDesktop)
+                              PlatformUtils.isDesktop)
                             mediaListTab(),
                           if (videoDetailController.showReply)
                             videoReplyPanel(),
@@ -1151,7 +1154,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     child: videoTabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
-                        if (videoDetailController.isPlayAll && Utils.isDesktop)
+                        if (videoDetailController.isPlayAll &&
+                            PlatformUtils.isDesktop)
                           mediaListTab(),
                         if (videoDetailController.isFileSource)
                           localIntroPanel()
@@ -1517,7 +1521,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     bool showPlaylistHeader = false,
   }) {
     final showDesktopListTab =
-        videoDetailController.isPlayAll && Utils.isDesktop;
+        videoDetailController.isPlayAll && PlatformUtils.isDesktop;
     // 将“列表” tab 放到最前面（如果存在），其他 tab 按原来的顺序出现
     List<String> tabs = [
       if (showDesktopListTab) videoDetailController.watchLaterTitle,
@@ -1982,7 +1986,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       },
     );
     // 桌面端使用 tabbar 上方的播放列表按钮，移动端使用底部的按钮
-    if (videoDetailController.isPlayAll && !Utils.isDesktop) {
+    if (videoDetailController.isPlayAll && !PlatformUtils.isDesktop) {
       return Stack(
         clipBehavior: Clip.none,
         children: [

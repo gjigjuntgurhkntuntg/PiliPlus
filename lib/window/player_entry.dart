@@ -9,7 +9,7 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/player_window_manager.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
-import 'package:PiliPlus/utils/utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flex_seed_scheme/flex_seed_scheme.dart';
@@ -83,7 +83,7 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     _parseSettings();
     _initWindow();
     // Only setup window channels on desktop platforms
-    if (Utils.isDesktop) {
+    if (PlatformUtils.isDesktop) {
       // Register window method handler early so main window can reuse this one
       // without spawning extra player windows.
       _setupWindowMethodHandler();
@@ -546,7 +546,7 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
               PointerDeviceKind.invertedStylus,
               PointerDeviceKind.trackpad,
               PointerDeviceKind.unknown,
-              if (Utils.isDesktop) PointerDeviceKind.mouse,
+              if (PlatformUtils.isDesktop) PointerDeviceKind.mouse,
             },
           ),
         );

@@ -32,11 +32,12 @@ import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/extension.dart';
+import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart' show PageUtils;
 import 'package:PiliPlus/utils/path_utils.dart';
+import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -105,7 +106,7 @@ class PlPlayerController {
 
   /// 音量控制条
   final RxDouble volume = RxDouble(
-    Utils.isDesktop ? Pref.desktopVolume : 1.0,
+    PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
   );
   final setSystemBrightness = Pref.setSystemBrightness;
 
@@ -228,9 +229,15 @@ class PlPlayerController {
   late final bool autoPiP = Pref.autoPiP;
   bool get isPipMode =>
       (Platform.isAndroid && Floating().isPipMode) ||
-      (Utils.isDesktop && isDesktopPip);
+      (PlatformUtils.isDesktop && isDesktopPip);
   late bool isDesktopPip = false;
   late Rect _lastWindowBounds;
+
+  late final RxBool isAlwaysOnTop = false.obs;
+  Future<void> setAlwaysOnTop(bool value) {
+    isAlwaysOnTop.value = value;
+    return windowManager.setAlwaysOnTop(value);
+  }
 
   Offset initialFocalPoint = Offset.zero;
 
@@ -240,18 +247,8 @@ class PlPlayerController {
       windowManager.setTitleBarStyle(TitleBarStyle.normal),
       windowManager.setMinimumSize(const Size(400, 700)),
       windowManager.setBounds(_lastWindowBounds),
-      windowManager.setAlwaysOnTop(false),
+      setAlwaysOnTop(false),
       windowManager.setAspectRatio(0),
-      setting.putAll({
-        SettingBoxKey.windowSize: [
-          _lastWindowBounds.width,
-          _lastWindowBounds.height,
-        ],
-        SettingBoxKey.windowPosition: [
-          _lastWindowBounds.left,
-          _lastWindowBounds.top,
-        ],
-      }),
     ]);
   }
 
@@ -275,9 +272,9 @@ class PlPlayerController {
     }
 
     await windowManager.setMinimumSize(size);
+    setAlwaysOnTop(true);
     windowManager
       ..setSize(size)
-      ..setAlwaysOnTop(true)
       ..setAspectRatio(width / height);
   }
 
@@ -329,7 +326,7 @@ class PlPlayerController {
   }
 
   /// 弹幕权重
-  late final enableTapDm = Utils.isMobile && Pref.enableTapDm;
+  late final enableTapDm = PlatformUtils.isMobile && Pref.enableTapDm;
   late int danmakuWeight = Pref.danmakuWeight;
   late RuleFilter filters = Pref.danmakuFilterRule;
   // 关联弹幕控制器
@@ -411,7 +408,7 @@ class PlPlayerController {
 
   late final bool tempPlayerConf = Pref.tempPlayerConf;
 
-  late int? cacheVideoQa = Utils.isMobile ? null : Pref.defaultVideoQa;
+  late int? cacheVideoQa = PlatformUtils.isMobile ? null : Pref.defaultVideoQa;
   late int cacheAudioQa = Pref.defaultAudioQa;
   bool enableHeart = true;
 
@@ -623,7 +620,7 @@ class PlPlayerController {
     int? seasonId,
     int? pgcType,
     VideoType? videoType,
-    VoidCallback? callback,
+    VoidCallback? onInit,
     Volume? volume,
     String? dirPath,
     String? typeTag,
@@ -691,7 +688,7 @@ class PlPlayerController {
       // listen the video player events
       startListeners();
       await _initializePlayer();
-      callback?.call();
+      onInit?.call();
     } catch (err, stackTrace) {
       dataStatus.status.value = DataStatus.error;
       if (kDebugMode) {
@@ -809,7 +806,7 @@ class PlPlayerController {
         );
     final pp = player.platform!;
     if (_videoPlayerController == null) {
-      if (Utils.isDesktop) {
+      if (PlatformUtils.isDesktop) {
         pp.setVolume(this.volume.value * 100);
       }
       if (isAnim) {
@@ -1347,11 +1344,12 @@ class PlPlayerController {
   Timer? volumeTimer;
   final RxBool volumeInterceptEventStream = false.obs;
 
+  static final double maxVolume = PlatformUtils.isDesktop ? 2.0 : 1.0;
   Future<void> setVolume(double volume) async {
     if (this.volume.value != volume) {
       this.volume.value = volume;
       try {
-        if (Utils.isDesktop) {
+        if (PlatformUtils.isDesktop) {
           _videoPlayerController!.setVolume(volume * 100);
         } else {
           FlutterVolumeController.updateShowSystemUI(false);
@@ -1367,7 +1365,7 @@ class PlPlayerController {
     volumeTimer = Timer(const Duration(milliseconds: 200), () {
       volumeIndicator.value = false;
       volumeInterceptEventStream.value = false;
-      if (Utils.isDesktop) {
+      if (PlatformUtils.isDesktop) {
         setting.put(SettingBoxKey.desktopVolume, volume.toPrecision(3));
       }
     });
@@ -1563,7 +1561,7 @@ class PlPlayerController {
       );
 
       if (status) {
-        if (Utils.isMobile) {
+        if (PlatformUtils.isMobile) {
           hideStatusBar();
           if (mode == FullScreenMode.none) {
             return;
@@ -1590,7 +1588,7 @@ class PlPlayerController {
           await enterDesktopFullscreen(inAppFullScreen: inAppFullScreen);
         }
       } else {
-        if (Utils.isMobile) {
+        if (PlatformUtils.isMobile) {
           showStatusBar();
           if (mode == FullScreenMode.none) {
             return;
@@ -1732,6 +1730,7 @@ class PlPlayerController {
       }
       return;
     }
+
     _playerCount = 0;
     _stopListenerForVideoFit();
     _stopListenerForEnterFullScreen();
@@ -1755,6 +1754,10 @@ class PlPlayerController {
 
     // playerStatus.close();
     // dataStatus.status.close();
+
+    if (PlatformUtils.isDesktop && isAlwaysOnTop.value) {
+      windowManager.setAlwaysOnTop(false);
+    }
 
     await removeListeners();
     if (playerStatus.playing) {
