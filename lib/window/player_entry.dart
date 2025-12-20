@@ -262,8 +262,8 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
   }
 
   void _setupPlayerChannel() {
-    const channel = WindowMethodChannel(PlayerWindowManager.channelName);
-    channel.setMethodCallHandler((call) async {
+    final _ = const WindowMethodChannel(PlayerWindowManager.channelName)
+      ..setMethodCallHandler((call) async {
       switch (call.method) {
         case 'playVideo':
           final args = call.arguments as Map?;
@@ -390,7 +390,7 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
         'heroTag': 'playerWindow_${args['bvid'] ?? args['aid']}',
         if (args['progress'] != null) 'progress': args['progress'],
         // Include converted sourceType and other extraArguments
-        if (sourceType != null) 'sourceType': sourceType,
+        'sourceType': ?sourceType,
         ...extraArgs,
       },
     );

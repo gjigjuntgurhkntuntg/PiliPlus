@@ -122,8 +122,8 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   }
 
   void _setupWindowChannel() {
-    const channel = WindowMethodChannel('player_window_channel');
-    channel.setMethodCallHandler((call) async {
+    final _ = const WindowMethodChannel('player_window_channel')
+      ..setMethodCallHandler((call) async {
       switch (call.method) {
         case 'playVideo':
           // Note: IPC may pass Map<Object?, Object?>, need to convert properly
@@ -171,7 +171,7 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   }
 
   @override
-  void onWindowClose() async {
+  Future<void> onWindowClose() async {
     // 保存窗口位置和大小
     final bounds = await windowManager.getBounds();
     PlayerWindowService.savePlayerWindowBounds(
@@ -185,7 +185,7 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   }
 
   @override
-  void onWindowResized() async {
+  Future<void> onWindowResized() async {
     final bounds = await windowManager.getBounds();
     PlayerWindowService.savePlayerWindowBounds(
       bounds.left,
@@ -196,7 +196,7 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   }
 
   @override
-  void onWindowMoved() async {
+  Future<void> onWindowMoved() async {
     final bounds = await windowManager.getBounds();
     PlayerWindowService.savePlayerWindowBounds(
       bounds.left,
@@ -268,7 +268,7 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
           routingCallback: (routing) {
             // 拦截非播放页面的路由，在主窗口中打开
             if (routing?.current != null) {
-              final route = routing!.current!;
+              final route = routing!.current;
               if (_shouldOpenInMainWindow(route)) {
                 // TODO: 在主窗口中打开
               }

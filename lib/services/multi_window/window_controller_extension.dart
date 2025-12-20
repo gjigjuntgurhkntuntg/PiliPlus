@@ -5,29 +5,29 @@ import 'package:window_manager/window_manager.dart';
 /// WindowController 扩展，用于窗口间通信
 extension WindowControllerExtension on WindowController {
   /// 初始化窗口方法处理器（用于子窗口）
-  Future<void> doCustomInitialize() async {
-    return await setWindowMethodHandler((call) async {
+  Future<void> doCustomInitialize() {
+    return setWindowMethodHandler((call) {
       switch (call.method) {
         case 'window_center':
-          return await windowManager.center();
+          return windowManager.center();
         case 'window_close':
-          return await windowManager.close();
+          return windowManager.close();
         case 'window_show':
-          return await windowManager.show();
+          return windowManager.show();
         case 'window_focus':
-          return await windowManager.focus();
+          return windowManager.focus();
         case 'window_hide':
-          return await windowManager.hide();
+          return windowManager.hide();
         case 'window_minimize':
-          return await windowManager.minimize();
+          return windowManager.minimize();
         case 'window_maximize':
-          return await windowManager.maximize();
+          return windowManager.maximize();
         case 'window_restore':
-          return await windowManager.restore();
+          return windowManager.restore();
         case 'window_set_always_on_top':
           final args = call.arguments as Map?;
           final isOn = args?['isOn'] as bool? ?? false;
-          return await windowManager.setAlwaysOnTop(isOn);
+          return windowManager.setAlwaysOnTop(isOn);
         default:
           throw MissingPluginException(
             'Not implemented method: ${call.method}',
@@ -37,29 +37,29 @@ extension WindowControllerExtension on WindowController {
   }
 
   /// 初始化主窗口方法处理器
-  Future<void> initMainWindowHandler() async {
-    return await setWindowMethodHandler((call) async {
+  Future<void> initMainWindowHandler() {
+    return setWindowMethodHandler((call) {
       switch (call.method) {
         case 'window_center':
-          return await windowManager.center();
+          return windowManager.center();
         case 'window_close':
-          return await windowManager.close();
+          return windowManager.close();
         case 'window_show':
-          return await windowManager.show();
+          return windowManager.show();
         case 'window_focus':
-          return await windowManager.focus();
+          return windowManager.focus();
         case 'window_hide':
-          return await windowManager.hide();
+          return windowManager.hide();
         case 'window_minimize':
-          return await windowManager.minimize();
+          return windowManager.minimize();
         case 'window_maximize':
-          return await windowManager.maximize();
+          return windowManager.maximize();
         case 'window_restore':
-          return await windowManager.restore();
+          return windowManager.restore();
         case 'window_set_always_on_top':
           final args = call.arguments as Map?;
           final isOn = args?['isOn'] as bool? ?? false;
-          return await windowManager.setAlwaysOnTop(isOn);
+          return windowManager.setAlwaysOnTop(isOn);
         default:
           throw MissingPluginException(
             'Not implemented method: ${call.method}',

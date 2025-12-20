@@ -50,7 +50,7 @@ class PlayerWindowManager {
   static PlayerWindowArguments _parseMapToArgs(Map<String, dynamic> json) {
     // Collect unknown fields into extraArguments and serialize enums to strings
     // Returns null if the value cannot be serialized to JSON
-    dynamic _serializeValue(dynamic v) {
+    dynamic serializeValue(dynamic v) {
       if (v == null) return null;
       // Primitive types are directly serializable
       if (v is num || v is String || v is bool) return v;
@@ -63,7 +63,7 @@ class PlayerWindowManager {
       if (v is Map) {
         final result = <String, dynamic>{};
         for (final e in v.entries) {
-          final serialized = _serializeValue(e.value);
+          final serialized = serializeValue(e.value);
           if (serialized != null) {
             result[e.key.toString()] = serialized;
           }
@@ -71,7 +71,7 @@ class PlayerWindowManager {
         return result.isNotEmpty ? result : null;
       }
       if (v is Iterable) {
-        final result = v.map(_serializeValue).where((e) => e != null).toList();
+        final result = v.map(serializeValue).where((e) => e != null).toList();
         return result.isNotEmpty ? result : null;
       }
       // Cannot serialize complex objects (like PgcInfoModel), skip them
@@ -82,7 +82,7 @@ class PlayerWindowManager {
     final extraArgs = <String, dynamic>{};
     for (final entry in json.entries) {
       if (!_knownFields.contains(entry.key)) {
-        extraArgs[entry.key.toString()] = _serializeValue(entry.value);
+        extraArgs[entry.key.toString()] = serializeValue(entry.value);
       }
     }
 
@@ -91,7 +91,7 @@ class PlayerWindowManager {
     if (existingExtra != null) {
       extraArgs.addAll(Map<String, dynamic>.fromEntries(
         existingExtra.entries.map(
-          (e) => MapEntry(e.key.toString(), _serializeValue(e.value)),
+            (e) => MapEntry(e.key.toString(), serializeValue(e.value)),
         ),
       ));
     }
@@ -126,7 +126,7 @@ class PlayerWindowManager {
   /// 在主窗口打开一个路由（播放器窗口向主窗口请求导航）
   Future<void> openInMainWindow(String route, dynamic arguments) async {
     try {
-      final channel = WindowMethodChannel(channelName);
+      const channel = WindowMethodChannel(channelName);
       await channel.invokeMethod('openInMain', {
         'route': route,
         'arguments': arguments,
@@ -137,12 +137,12 @@ class PlayerWindowManager {
   }
 
   /// 关闭播放器窗口
-  static Future<void> closePlayerWindow() async {
+  static Future<void> closePlayerWindow() {
     return PlayerWindowService.instance.closePlayerWindow();
   }
 
   /// 查找播放器窗口
-  static Future<WindowController?> findPlayerWindow() async {
+  static Future<WindowController?> findPlayerWindow() {
     return PlayerWindowService.instance.findPlayerWindow();
   }
 

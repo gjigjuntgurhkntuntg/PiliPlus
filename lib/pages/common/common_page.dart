@@ -21,7 +21,6 @@ abstract class CommonPageState<
   StreamController<bool>? mainStream;
   StreamController<bool>? searchBarStream;
   // late double _downScrollCount = 0.0; // 向下滚动计数器
-  late double _upScrollCount = 0.0; // 向上滚动计数器
   double? _lastScrollPosition; // 记录上次滚动位置
 
   // 恢复：子类依赖这些字段
@@ -86,7 +85,7 @@ abstract class CommonPageState<
   void listener() {
     if (!scrollController.hasClients) return;
 
-    final direction = scrollController.position.userScrollDirection;
+    final _ = scrollController.position.userScrollDirection;
     final double currentPosition = scrollController.position.pixels;
 
     // 初始化上次位置
@@ -161,18 +160,11 @@ abstract class CommonPageState<
       );
       dynCtr.upPanelRatio.value = newRatio;
       // 兼容旧逻辑
-      if (newRatio == 0 && dynCtr.upPanelStream != null)
+      if (newRatio == 0 && dynCtr.upPanelStream != null) {
         dynCtr.upPanelStream!.add(false);
-      if (newRatio == 1 && dynCtr.upPanelStream != null)
+      }
+      if (newRatio == 1 && dynCtr.upPanelStream != null) {
         dynCtr.upPanelStream!.add(true);
-    }
-
-    // 复用原来的部分逻辑保持反向兼容（如果需要）
-    if (direction == ScrollDirection.reverse) {
-      _upScrollCount = 0.0;
-    } else if (direction == ScrollDirection.forward) {
-      if (scrollDelta < 0) {
-        _upScrollCount += (-scrollDelta);
       }
     }
   }

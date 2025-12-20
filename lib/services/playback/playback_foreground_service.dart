@@ -29,7 +29,7 @@ class PlaybackForegroundService {
         playSound: false,
         showWhen: true,
       ),
-      iosNotificationOptions: IOSNotificationOptions(
+      iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
         playSound: false,
       ),

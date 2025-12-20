@@ -799,8 +799,9 @@ class TextSelectionGestureDetectorBuilder {
           renderEditable.selectWord(cause: SelectionChangedCause.tap);
         }
         if (shouldShowSelectionToolbar) {
-          editableText.hideToolbar();
-          editableText.showToolbar();
+          editableText
+            ..hideToolbar()
+            ..showToolbar();
         }
       case TargetPlatform.android:
       case TargetPlatform.fuchsia:

@@ -403,10 +403,10 @@ class MyApp extends StatelessWidget {
           // Only on desktop platforms where multi-window is supported
           if (!_playerChannelInited && PlatformUtils.isDesktop) {
             try {
-              const channel = WindowMethodChannel(
+              final _ =
+                  const WindowMethodChannel(
                 PlayerWindowManager.channelName,
-              );
-              channel.setMethodCallHandler((call) async {
+                  )..setMethodCallHandler((call) async {
                 switch (call.method) {
                   case 'openInMain':
                     final data = call.arguments as Map?;

@@ -478,10 +478,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     isShowing = true;
     PlPlayerController.setPlayCallBack(playCallBack);
 
-    introController.startTimer();
+    introController
+      ..startTimer()
 
     // 恢复媒体通知列表控制模式（从听视频页返回时需要）
-    introController.restoreListControlMode();
+      ..restoreListControlMode();
 
     if (mounted &&
         Platform.isAndroid &&
@@ -1399,7 +1400,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               title: '确认缓存视频？',
               content: '将把此视频加入离线下载队列。',
             );
-            if (confirmed) {
+            if (confirmed && mounted) {
               videoDetailController.onDownload(this.context);
             }
           },

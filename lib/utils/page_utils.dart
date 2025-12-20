@@ -48,7 +48,7 @@ abstract final class PageUtils {
     int initialPage = 0,
     required List<SourceModel> imgList,
     int? quality,
-  }) async {
+  }) {
     return Get.key.currentState!.push<void>(
       HeroDialogRoute(
         pageBuilder: (context, animation, secondaryAnimation) =>

@@ -249,7 +249,7 @@ class _MainAppState extends State<MainApp>
 
   String get _playPageOnTopLabel {
     final prefix = _isPlayPageOnTop ? '✅ ' : '';
-    return '${prefix}播放页置顶';
+    return '$prefix播放页置顶';
   }
 
   bool get _isPlayPageOnTop => Pref.usePlayerWindow
