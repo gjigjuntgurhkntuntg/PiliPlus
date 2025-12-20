@@ -34,6 +34,7 @@ import 'package:PiliPlus/pages/video/pay_coins/view.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/logger.dart';
+import 'package:PiliPlus/services/playback/playback_foreground_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
@@ -112,6 +113,7 @@ class AudioController extends GetxController
   Timer? _playUrlRetryTimer;
   int _playUrlRetryCount = 0;
   static const int _maxPlayUrlRetry = 2;
+  bool _fgStartedForCurrent = false;
 
   @override
   void onInit() {
@@ -329,6 +331,8 @@ class AudioController extends GetxController
     String? referer,
     String ua = Constants.userAgentApp,
   }) {
+    _fgStartedForCurrent = false;
+    PlaybackForegroundService.stop();
     _initPlayerIfNeeded();
     player!.open(
       Media(
@@ -359,6 +363,7 @@ class AudioController extends GetxController
           this.position.value = position;
           _videoDetailController?.playedTime = position;
           videoPlayerServiceHandler?.onPositionChange(position);
+          _maybeStartPlaybackForeground();
         }
       }),
       player!.stream.duration.listen((duration) {
@@ -385,6 +390,8 @@ class AudioController extends GetxController
           false,
         );
         if (completed) {
+          _fgStartedForCurrent = false;
+          PlaybackForegroundService.stop();
           switch (playMode.value) {
             case PlayRepeat.pause:
               break;
@@ -966,6 +973,53 @@ class AudioController extends GetxController
     return false;
   }
 
+  bool get _hasNextItem {
+    if (playMode.value == PlayRepeat.singleCycle ||
+        playMode.value == PlayRepeat.pause) {
+      return false;
+    }
+
+    // 同一条目的分 P
+    if (audioItem.value case final audio?) {
+      final parts = audio.parts;
+      if (parts.length > 1) {
+        final currentSub = subId.firstOrNull;
+        final currentIndex = parts.indexWhere((e) => e.subId == currentSub);
+        if (currentIndex != -1 && currentIndex + 1 < parts.length) {
+          return true;
+        }
+      }
+    }
+
+    if (playlist != null && index != null) {
+      if (index! + 1 < (playlist?.length ?? 0)) {
+        return true;
+      }
+      // 服务器还有下一页
+      if (_next != null) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _maybeStartPlaybackForeground() {
+    if (_fgStartedForCurrent || !PlaybackForegroundService.isSupported) return;
+    final total = duration.value;
+    if (total <= Duration.zero || !_hasNextItem) return;
+
+    final remaining = total - position.value;
+    if (remaining <= const Duration(seconds: 6)) {
+      _fgStartedForCurrent = true;
+      final title = audioItem.value?.arc.title ?? Constants.appName;
+      PlaybackForegroundService.start(
+        title: '即将切换：$title',
+        text: '保持后台播放不中断',
+      );
+    }
+  }
+
   void playIndex(int index, {List<Int64>? subId}) {
     if (index == this.index && subId == null) return;
     this.index = index;
@@ -1057,6 +1111,7 @@ class AudioController extends GetxController
     _sponsorBlockSubscription = null;
     _connectivitySubscription?.cancel();
     _playUrlRetryTimer?.cancel();
+    PlaybackForegroundService.stop();
     player?.dispose();
     player = null;
     animController.dispose();

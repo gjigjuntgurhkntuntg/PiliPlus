@@ -30,6 +30,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
+import 'package:PiliPlus/services/playback/playback_foreground_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
@@ -211,6 +212,8 @@ class PlPlayerController {
   late final RxBool flipY = false.obs;
 
   final RxBool isBuffering = true.obs;
+
+  bool _fgStartedForCurrent = false;
 
   /// 全屏方向
   bool get isVertical => _isVertical;
@@ -1012,6 +1015,38 @@ class PlPlayerController {
   final Set<Function(Duration position)> _positionListeners = {};
   final Set<Function(PlayerStatus status)> _statusListeners = {};
 
+  bool get _hasNextCandidate {
+    return switch (playRepeat) {
+      PlayRepeat.singleCycle || PlayRepeat.pause => false,
+      _ => true,
+    };
+  }
+
+  void _maybeStartPlaybackForeground(Duration pos) {
+    if (!PlaybackForegroundService.isSupported) return;
+
+    // 切换到新媒资时重置标记
+    if (pos <= const Duration(seconds: 1)) {
+      _fgStartedForCurrent = false;
+      // 新一条已启动，停止旧的保活
+      PlaybackForegroundService.stop();
+      return;
+    }
+
+    if (_fgStartedForCurrent || !_hasNextCandidate) return;
+    final total = duration.value;
+    if (total <= Duration.zero) return;
+
+    final remaining = total - pos;
+    if (remaining <= const Duration(seconds: 6)) {
+      _fgStartedForCurrent = true;
+      PlaybackForegroundService.start(
+        title: '${Constants.appName} 播放中',
+        text: '即将切换下一集，保持后台播放不中断',
+      );
+    }
+  }
+
   /// 播放事件监听
   void startListeners() {
     final controllerStream = videoPlayerController!.stream;
@@ -1048,6 +1083,8 @@ class PlPlayerController {
       controllerStream.completed.listen((event) {
         if (event) {
           playerStatus.value = PlayerStatus.completed;
+          _fgStartedForCurrent = false;
+          PlaybackForegroundService.stop();
 
           /// 触发回调事件
           for (var element in _statusListeners) {
@@ -1065,6 +1102,8 @@ class PlPlayerController {
           sliderPosition.value = event;
           updateSliderPositionSecond();
         }
+
+        _maybeStartPlaybackForeground(event);
 
         /// 触发回调事件
         for (var element in _positionListeners) {
@@ -1742,6 +1781,7 @@ class PlPlayerController {
     _timer?.cancel();
     _timerForSeek?.cancel();
     _timerForShowingVolume?.cancel();
+    PlaybackForegroundService.stop();
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();
