@@ -134,22 +134,29 @@ class AudioController extends GetxController
 
     _queryPlayList(isInit: true);
 
-    final String? audioUrl = args['audioUrl'];
-    final hasAudioUrl = audioUrl != null;
-    if (hasAudioUrl) {
-      _onOpenMedia(
-        audioUrl,
-        ua: UaType.pc.ua,
-        referer: HttpString.baseUrl,
-      );
-      // 有 audioUrl 时也需要查询空降助手
-      if (enableSponsorBlock && isVideo) {
-        _querySponsorBlock();
-      }
-    }
-    Utils.isWiFi.then((isWiFi) {
+    // 先确定音频质量配置，再检查离线资源和播放
+    Utils.isWiFi.then((isWiFi) async {
       cacheAudioQa = isWiFi ? Pref.defaultAudioQa : Pref.defaultAudioQaCellular;
-      if (!hasAudioUrl) {
+
+      final String? audioUrl = args['audioUrl'];
+      final hasAudioUrl = audioUrl != null;
+
+      if (hasAudioUrl) {
+        // 即使传入了audioUrl，也先尝试使用本地离线资源
+        final triedLocal = await _tryPlayLocalIfAvailable();
+        if (!triedLocal) {
+          // 没有离线资源才使用传入的在线地址
+          _onOpenMedia(
+            audioUrl,
+            ua: UaType.pc.ua,
+            referer: HttpString.baseUrl,
+          );
+        }
+        // 有 audioUrl 时也需要查询空降助手
+        if (enableSponsorBlock && isVideo) {
+          _querySponsorBlock();
+        }
+      } else {
         _queryPlayUrl();
       }
     });
