@@ -27,6 +27,7 @@ class LaterItemModel with MultiSelectData {
   bool? isPugv;
   int? seasonId;
   bool? isCharging;
+  bool hasOfflineCache = false;
 
   LaterItemModel({
     this.aid,

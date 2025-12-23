@@ -5,6 +5,7 @@ import 'package:PiliPlus/models_new/later/list.dart';
 import 'package:PiliPlus/pages/common/multi_select/base.dart';
 import 'package:PiliPlus/pages/common/search/common_search_controller.dart';
 import 'package:PiliPlus/pages/later/controller.dart' show BaseLaterController;
+import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:get/get.dart';
 
 class LaterSearchController
@@ -24,6 +25,18 @@ class LaterSearchController
 
   @override
   List<LaterItemModel>? getDataList(LaterData response) {
-    return response.list;
+    final list = response.list;
+    // 检查每个视频是否有离线缓存
+    if (list != null && Get.isRegistered<DownloadService>()) {
+      final downloadService = Get.find<DownloadService>();
+      for (var item in list) {
+        if (item.cid != null) {
+          item.hasOfflineCache = downloadService.downloadList.any(
+            (e) => e.cid == item.cid,
+          );
+        }
+      }
+    }
+    return list;
   }
 }

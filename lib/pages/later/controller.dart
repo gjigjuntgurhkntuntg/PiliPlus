@@ -28,22 +28,100 @@ mixin BaseLaterController
 
   @override
   void onRemove() {
-    showConfirmDialog(
+    final removeList = allChecked.toSet();
+    // 检查是否有视频有离线缓存
+    final hasAnyCache = removeList.any((item) => item.hasOfflineCache);
+    bool deleteCache = false;
+
+    showDialog(
       context: Get.context!,
-      content: '确认删除所选稍后再看吗？',
-      title: '提示',
-      onConfirm: () async {
-        final removeList = allChecked.toSet();
-        SmartDialog.showLoading(msg: '请求中');
-        final res = await UserHttp.toViewDel(
-          aids: removeList.map((item) => item.aid).join(','),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('提示'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('确认删除所选 ${removeList.length} 个稍后再看吗？'),
+                  if (hasAnyCache) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      value: deleteCache,
+                      onChanged: (value) {
+                        setState(() {
+                          deleteCache = value ?? false;
+                        });
+                      },
+                      title: const Text('同时删除有离线缓存的视频'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: Get.back,
+                  child: Text(
+                    '取消',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Get.back();
+                    SmartDialog.showLoading(msg: '请求中');
+                    final res = await UserHttp.toViewDel(
+                      aids: removeList.map((item) => item.aid).join(','),
+                    );
+                    if (res['status']) {
+                      // 如果勾选了删除缓存，删除所有有离线缓存的视频
+                      if (deleteCache && Get.isRegistered<DownloadService>()) {
+                        final downloadService = Get.find<DownloadService>();
+                        int deletedCount = 0;
+                        for (var item in removeList) {
+                          if (item.hasOfflineCache && item.cid != null) {
+                            final downloadEntry = downloadService.downloadList
+                                .firstWhereOrNull((e) => e.cid == item.cid);
+                            if (downloadEntry != null) {
+                              await downloadService.deleteDownload(
+                                entry: downloadEntry,
+                                removeList: true,
+                                downloadNext: false,
+                                refresh: false,
+                              );
+                              deletedCount++;
+                            }
+                          }
+                        }
+                        if (deletedCount > 0) {
+                          downloadService.flagNotifier.refresh();
+                          SmartDialog.dismiss();
+                          SmartDialog.showToast(
+                            '已删除 ${removeList.length} 个稍后再看和 $deletedCount 个离线缓存',
+                          );
+                        }
+                      } else {
+                        SmartDialog.dismiss();
+                        SmartDialog.showToast(res['msg']);
+                      }
+                      updateCount?.call(removeList.length);
+                      afterDelete(removeList);
+                    } else {
+                      SmartDialog.dismiss();
+                      SmartDialog.showToast(res['msg']);
+                    }
+                  },
+                  child: const Text('确认删除'),
+                ),
+              ],
+            );
+          },
         );
-        if (res['status']) {
-          updateCount?.call(removeList.length);
-          afterDelete(removeList);
-        }
-        SmartDialog.dismiss();
-        SmartDialog.showToast(res['msg']);
       },
     );
   }
@@ -54,35 +132,83 @@ mixin BaseLaterController
     int index,
     int? aid,
   ) {
+    final item = loadingState.value.data![index];
+    final hasCache = item.hasOfflineCache;
+    bool deleteCache = false;
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('提示'),
-          content: const Text('即将移除该视频，确定是否移除'),
-          actions: [
-            TextButton(
-              onPressed: Get.back,
-              child: Text(
-                '取消',
-                style: TextStyle(color: Theme.of(context).colorScheme.outline),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('提示'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('即将移除该视频，确定是否移除'),
+                  if (hasCache) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      value: deleteCache,
+                      onChanged: (value) {
+                        setState(() {
+                          deleteCache = value ?? false;
+                        });
+                      },
+                      title: const Text('同时删除离线缓存'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ],
               ),
-            ),
-            TextButton(
-              onPressed: () async {
-                Get.back();
-                final res = await UserHttp.toViewDel(aids: aid.toString());
-                if (res['status']) {
-                  loadingState
-                    ..value.data!.removeAt(index)
-                    ..refresh();
-                  updateCount?.call(1);
-                }
-                SmartDialog.showToast(res['msg']);
-              },
-              child: const Text('确认移除'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: Get.back,
+                  child: Text(
+                    '取消',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Get.back();
+                    final res = await UserHttp.toViewDel(aids: aid.toString());
+                    if (res['status']) {
+                      // 如果勾选了删除缓存，同时删除离线缓存
+                      if (deleteCache &&
+                          item.cid != null &&
+                          Get.isRegistered<DownloadService>()) {
+                        final downloadService = Get.find<DownloadService>();
+                        final downloadEntry = downloadService.downloadList
+                            .firstWhereOrNull((e) => e.cid == item.cid);
+                        if (downloadEntry != null) {
+                          await downloadService.deleteDownload(
+                            entry: downloadEntry,
+                            removeList: true,
+                            downloadNext: false,
+                          );
+                          SmartDialog.showToast('已删除稍后再看和离线缓存');
+                        }
+                      }
+                      loadingState
+                        ..value.data!.removeAt(index)
+                        ..refresh();
+                      updateCount?.call(1);
+                    }
+                    if (!deleteCache || !hasCache) {
+                      SmartDialog.showToast(res['msg']);
+                    }
+                  },
+                  child: const Text('确认移除'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -122,7 +248,19 @@ class LaterController extends MultiSelectController<LaterData, LaterItemModel>
   @override
   List<LaterItemModel>? getDataList(response) {
     baseCtr.counts[laterViewType.index] = response.count ?? 0;
-    return response.list;
+    final list = response.list;
+    // 检查每个视频是否有离线缓存
+    if (list != null && Get.isRegistered<DownloadService>()) {
+      final downloadService = Get.find<DownloadService>();
+      for (var item in list) {
+        if (item.cid != null) {
+          item.hasOfflineCache = downloadService.downloadList.any(
+            (e) => e.cid == item.cid,
+          );
+        }
+      }
+    }
+    return list;
   }
 
   @override

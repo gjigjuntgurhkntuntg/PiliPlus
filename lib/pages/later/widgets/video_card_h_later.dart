@@ -131,6 +131,13 @@ class VideoCardHLater extends StatelessWidget {
                             top: 6.0,
                             right: 6.0,
                           ),
+                        if (videoItem.hasOfflineCache)
+                          const PBadge(
+                            text: '已缓存',
+                            top: 6.0,
+                            left: 6.0,
+                            type: PBadgeType.primary,
+                          ),
                         if (progress != null && progress != 0) ...[
                           PBadge(
                             text: progress == -1
