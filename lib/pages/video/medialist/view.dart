@@ -31,7 +31,6 @@ class MediaListPanel extends CommonSlidePage {
     required this.onReverse,
     required this.loadPrevious,
     this.onDelete,
-    this.inTab = false,
   });
 
   final RxList<MediaListItemModel> mediaList;
@@ -44,7 +43,6 @@ class MediaListPanel extends CommonSlidePage {
   final VoidCallback onReverse;
   final RefreshCallback? loadPrevious;
   final void Function(MediaListItemModel item, int index)? onDelete;
-  final bool inTab;
 
   @override
   State<MediaListPanel> createState() => _MediaListPanelState();
@@ -66,19 +64,6 @@ class _MediaListPanelState extends State<MediaListPanel>
 
   @override
   Widget buildPage(ThemeData theme) {
-    if (widget.inTab) {
-      return Material(
-        color: theme.colorScheme.surface,
-        child: Column(
-          children: [
-            Expanded(
-              child: enableSlide ? slideList(theme) : buildList(theme),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Material(
       color: theme.colorScheme.surface,
       child: Column(
@@ -192,9 +177,7 @@ class _MediaListPanelState extends State<MediaListPanel>
                 SmartDialog.showToast('不支持播放该类型视频');
                 return;
               }
-              if (!widget.inTab) {
-                Get.back();
-              }
+              Get.back();
               widget.onChangeEpisode(item);
             },
             onLongPress: onLongPress,
