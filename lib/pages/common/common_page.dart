@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui' show clampDouble;
 
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart'
@@ -18,8 +17,8 @@ abstract class CommonPageState<
 >
     extends State<T> {
   R get controller;
-  StreamController<bool>? mainStream;
-  StreamController<bool>? searchBarStream;
+  RxBool? showBottomBar;
+  RxBool? showSearchBar;
   // late double _downScrollCount = 0.0; // 向下滚动计数器
   double? _lastScrollPosition; // 记录上次滚动位置
 
@@ -41,8 +40,8 @@ abstract class CommonPageState<
   void initState() {
     super.initState();
     try {
-      mainStream = Get.find<MainController>().bottomBarStream;
-      searchBarStream = Get.find<HomeController>().searchBarStream;
+      showBottomBar = Get.find<MainController>().bottomBar;
+      showSearchBar = Get.find<HomeController>().searchBar;
     } catch (_) {}
 
     // 强制添加监听，不再依赖 enableScrollThreshold 配置，以实现跟随手指滑动
@@ -56,10 +55,8 @@ abstract class CommonPageState<
   }
 
   Widget onBuild(Widget child) {
-    // 恢复：某些子类可能依赖 onNotification 被调用
-    // 虽然我们现在主要靠 listener，但为了兼容性保留
     if (!enableScrollThreshold &&
-        (mainStream != null || searchBarStream != null)) {
+        (showBottomBar != null || showSearchBar != null)) {
       return NotificationListener<UserScrollNotification>(
         onNotification: onNotification,
         child: child,
@@ -73,11 +70,11 @@ abstract class CommonPageState<
     if (notification.metrics.axis == Axis.horizontal) return false;
     final direction = notification.direction;
     if (direction == ScrollDirection.forward) {
-      mainStream?.add(true);
-      searchBarStream?.add(true);
+      showBottomBar?.value = true;
+      showSearchBar?.value = true;
     } else if (direction == ScrollDirection.reverse) {
-      mainStream?.add(false);
-      searchBarStream?.add(false);
+      showBottomBar?.value = false;
+      showSearchBar?.value = false;
     }
     return false;
   }
@@ -136,8 +133,8 @@ abstract class CommonPageState<
       );
       mainCtr.bottomBarRatio.value = newRatio;
       // 兼容旧逻辑：发送布尔值
-      if (newRatio == 0) mainStream?.add(false);
-      if (newRatio == 1) mainStream?.add(true);
+      if (newRatio == 0) showBottomBar?.value = false;
+      if (newRatio == 1) showBottomBar?.value = true;
     }
 
     if (homeCtr != null) {
@@ -148,8 +145,8 @@ abstract class CommonPageState<
       );
       homeCtr.searchBarRatio.value = newRatio;
       // 兼容旧逻辑
-      if (newRatio == 0) searchBarStream?.add(false);
-      if (newRatio == 1) searchBarStream?.add(true);
+      if (newRatio == 0) showSearchBar?.value = false;
+      if (newRatio == 1) showSearchBar?.value = true;
     }
 
     if (dynCtr != null) {
@@ -180,6 +177,8 @@ abstract class CommonPageState<
 
   @override
   void dispose() {
+    showSearchBar = null;
+    showBottomBar = null;
     controller.scrollController.removeListener(listener);
     super.dispose();
   }

@@ -19,7 +19,8 @@ class HomeController extends GetxController
   late List<HomeTabType> tabs;
   late TabController tabController;
 
-  StreamController<bool>? searchBarStream;
+
+  RxBool? searchBar;
   // 搜索栏滚动比例，1.0 = 完全显示，0.0 = 完全隐藏
   final RxDouble searchBarRatio = 1.0.obs;
   final bool hideSearchBar = Pref.hideSearchBar;
@@ -45,8 +46,8 @@ class HomeController extends GetxController
   void onInit() {
     super.onInit();
 
-    if (hideSearchBar) {
-      searchBarStream = StreamController<bool>.broadcast();
+    if (Pref.hideSearchBar) {
+      searchBar = true.obs;
     }
 
     if (enableSearchWord) {
@@ -96,11 +97,5 @@ class HomeController extends GetxController
         // defaultSearch.value = res.data['data']?['show_name'] ?? '';
       }
     } catch (_) {}
-  }
-
-  @override
-  void onClose() {
-    searchBarStream?.close();
-    super.onClose();
   }
 }
