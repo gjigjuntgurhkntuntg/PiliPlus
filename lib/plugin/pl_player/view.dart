@@ -2521,7 +2521,7 @@ Widget buildDmChart(
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(
                 show: true,
-                color: color.withValues(alpha: 0.4),
+                color: color.withValues(alpha: 0.2),
               ),
             ),
           ],
