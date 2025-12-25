@@ -81,6 +81,7 @@ class _MemberSearchChildPageState extends State<MemberSearchChildPage>
                           _controller.onLoadMore();
                         }
                         return VideoCardH(
+                          key: ValueKey(response[index].bvid),
                           videoItem: response[index],
                         );
                       },

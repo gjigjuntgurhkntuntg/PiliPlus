@@ -110,6 +110,7 @@ class _SearchVideoPanelState
           controller.onLoadMore();
         }
         return VideoCardH(
+          key: ValueKey(list[index].bvid),
           videoItem: list[index],
           onRemove: () => controller.loadingState
             ..value.data!.removeAt(index)

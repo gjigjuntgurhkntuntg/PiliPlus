@@ -152,6 +152,7 @@ class _HotPageState extends CommonPageState<HotPage, HotController>
                     controller.onLoadMore();
                   }
                   return VideoCardH(
+                    key: ValueKey(response[index].bvid),
                     videoItem: response[index],
                     onRemove: () => controller.loadingState
                       ..value.data!.removeAt(index)

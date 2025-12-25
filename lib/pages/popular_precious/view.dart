@@ -52,6 +52,7 @@ class _PopularPreciousPageState extends State<PopularPreciousPage>
           itemBuilder: (context, index) {
             final item = response[index];
             return VideoCardH(
+              key: ValueKey(item.bvid),
               videoItem: item,
               onTap: () {
                 PageUtils.toVideoPage(

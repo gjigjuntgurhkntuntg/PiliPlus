@@ -66,6 +66,7 @@ class _PopularSeriesPageState extends State<PopularSeriesPage> with GridMixin {
             itemBuilder: (context, index) {
               final item = response[index];
               return VideoCardH(
+                key: ValueKey(item.bvid),
                 videoItem: item,
                 onTap: () {
                   final config = _controller.config.value;
