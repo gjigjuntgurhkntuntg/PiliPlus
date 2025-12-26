@@ -76,10 +76,7 @@ class AudioController extends GetxController
   final Rx<Duration> position = Duration.zero.obs;
   final Rx<Duration> duration = Duration.zero.obs;
 
-  late final AnimationController animController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 200),
-  );
+  late final AnimationController animController;
 
   Set<StreamSubscription>? _subscriptions;
 
@@ -166,6 +163,11 @@ class AudioController extends GetxController
       ?..onPlay = onPlay
       ..onPause = onPause
       ..onSeek = onSeek;
+
+    animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
   }
 
   Future<void> onPlay() async {

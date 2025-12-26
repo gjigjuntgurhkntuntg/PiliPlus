@@ -33,6 +33,7 @@ import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/playback/playback_foreground_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
@@ -1929,8 +1930,9 @@ class PlPlayerController {
     videoPlayerController?.screenshot(format: 'image/png').then((value) {
       if (value != null) {
         SmartDialog.showToast('点击弹窗保存截图');
-        Get.dialog(
-          GestureDetector(
+        showDialog(
+          context: Get.context!,
+          builder: (context) => GestureDetector(
             onTap: () {
               Get.back();
               ImageUtils.saveByteImg(

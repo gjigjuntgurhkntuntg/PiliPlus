@@ -23,11 +23,7 @@ class DynamicsController extends GetxController
     with GetSingleTickerProviderStateMixin, ScrollOrRefreshMixin, AccountMixin {
   @override
   final ScrollController scrollController = ScrollController();
-  late final TabController tabController = TabController(
-    length: DynamicsTabType.values.length,
-    vsync: this,
-    initialIndex: Pref.defaultDynamicType,
-  );
+  late final TabController tabController;
 
   // UP主面板收起控制流（仅在top位置时使用）
   StreamController<bool>? upPanelStream;
@@ -67,6 +63,11 @@ class DynamicsController extends GetxController
     if (upPanelPosition == UpPanelPosition.top) {
       upPanelStream = StreamController<bool>.broadcast();
     }
+    tabController = TabController(
+      length: DynamicsTabType.values.length,
+      vsync: this,
+      initialIndex: Pref.defaultDynamicType,
+    );
     queryFollowUp();
   }
 
