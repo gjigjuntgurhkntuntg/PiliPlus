@@ -49,8 +49,8 @@ class _VideoCardHState extends State<VideoCardH> {
   Widget build(BuildContext context) {
     String type = 'video';
     String? badge;
-    if (videoItem case SearchVideoItemModel item) {
-      var typeOrNull = item.type;
+    if (videoItem case final SearchVideoItemModel item) {
+      final typeOrNull = item.type;
       if (typeOrNull != null && typeOrNull.isNotEmpty) {
         type = typeOrNull;
         if (type == 'ketang') {
@@ -62,7 +62,7 @@ class _VideoCardHState extends State<VideoCardH> {
       if (item.isUnionVideo == 1) {
         badge = '合作';
       }
-    } else if (videoItem case HotVideoItemModel item) {
+    } else if (videoItem case final HotVideoItemModel item) {
       if (item.isCharging == true) {
         badge = '充电专属';
       } else if (item.isCooperation == 1) {
@@ -98,7 +98,7 @@ class _VideoCardHState extends State<VideoCardH> {
                     PageUtils.viewPugv(seasonId: videoItem.aid);
                     return;
                   } else if (type == 'live_room') {
-                    if (videoItem case SearchVideoItemModel item) {
+                    if (videoItem case final SearchVideoItemModel item) {
                       int? roomId = item.id;
                       if (roomId != null) {
                         PageUtils.toLiveRoom(roomId);
@@ -110,7 +110,7 @@ class _VideoCardHState extends State<VideoCardH> {
                     }
                     return;
                   }
-                  if (videoItem case HotVideoItemModel item) {
+                  if (videoItem case final HotVideoItemModel item) {
                     if (item.redirectUrl?.isNotEmpty == true &&
                         PageUtils.viewPgcFromUri(item.redirectUrl!)) {
                       return;
@@ -151,7 +151,7 @@ class _VideoCardHState extends State<VideoCardH> {
                         final double maxWidth = boxConstraints.maxWidth;
                         final double maxHeight = boxConstraints.maxHeight;
                         num? progress;
-                        if (videoItem case HotVideoItemModel item) {
+                        if (videoItem case final HotVideoItemModel item) {
                           progress = item.progress;
                         }
 
@@ -280,7 +280,7 @@ class _VideoCardHState extends State<VideoCardH> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (videoItem case SearchVideoItemModel item) ...[
+          if (videoItem case final SearchVideoItemModel item) ...[
             if (item.titleList?.isNotEmpty == true)
               Expanded(
                 child: Text.rich(

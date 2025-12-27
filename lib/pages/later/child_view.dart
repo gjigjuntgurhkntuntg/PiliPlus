@@ -59,7 +59,7 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
   Widget _buildBody(LoadingState<List<LaterItemModel>?> loadingState) {
     return switch (loadingState) {
       Loading() => gridSkeleton,
-      Success(:var response) =>
+      Success(:final response) =>
         response != null && response.isNotEmpty
             ? SliverGrid.builder(
                 gridDelegate: gridDelegate,
@@ -67,7 +67,7 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
                   if (index == response.length - 1) {
                     _laterController.onLoadMore();
                   }
-                  var videoItem = response[index];
+                  final videoItem = response[index];
                   return VideoCardHLater(
                     key: ValueKey('${videoItem.bvid}_${videoItem.progress}'),
                     index: index,
@@ -99,7 +99,7 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
                 itemCount: response.length,
               )
             : HttpError(onReload: _laterController.onReload),
-      Error(:var errMsg) => HttpError(
+      Error(:final errMsg) => HttpError(
         errMsg: errMsg,
         onReload: _laterController.onReload,
       ),

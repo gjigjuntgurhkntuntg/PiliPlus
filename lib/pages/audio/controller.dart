@@ -828,10 +828,13 @@ class AudioController extends GetxController
                   ),
                   onTap: () {
                     Get.back();
-                    if (audioItem.value case final audioItem?) {
+                    if (audioItem.value case DetailItem(
+                      :final arc,
+                      :final owner,
+                    )) {
                       Utils.shareText(
-                        '${audioItem.arc.title} '
-                        'UP主: ${audioItem.owner.name}'
+                        '${arc.title} '
+                        'UP主: ${owner.name}'
                         ' - $audioUrl',
                       );
                     }
@@ -845,7 +848,10 @@ class AudioController extends GetxController
                 ),
                 onTap: () {
                   Get.back();
-                  if (audioItem.value case final audioItem?) {
+                  if (audioItem.value case DetailItem(
+                    :final arc,
+                    :final owner,
+                  )) {
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -853,9 +859,9 @@ class AudioController extends GetxController
                       builder: (context) => RepostPanel(
                         rid: oid.toInt(),
                         dynType: isVideo ? 8 : 256,
-                        pic: audioItem.arc.cover,
-                        title: audioItem.arc.title,
-                        uname: audioItem.owner.name,
+                        pic: arc.cover,
+                        title: arc.title,
+                        uname: owner.name,
                       ),
                     );
                   }
@@ -870,18 +876,21 @@ class AudioController extends GetxController
                   ),
                   onTap: () {
                     Get.back();
-                    if (audioItem.value case final audioItem?) {
+                    if (audioItem.value case DetailItem(
+                      :final arc,
+                      :final owner,
+                    )) {
                       try {
                         PageUtils.pmShare(
                           context,
                           content: {
                             "id": oid.toString(),
-                            "title": audioItem.arc.title,
-                            "headline": audioItem.arc.title,
+                            "title": arc.title,
+                            "headline": arc.title,
                             "source": 5,
-                            "thumb": audioItem.arc.cover,
-                            "author": audioItem.owner.name,
-                            "author_id": audioItem.owner.mid.toString(),
+                            "thumb": arc.cover,
+                            "author": owner.name,
+                            "author_id": owner.mid.toString(),
                           },
                         );
                       } catch (e) {
@@ -920,8 +929,7 @@ class AudioController extends GetxController
 
   bool playNext({bool nextPart = false}) {
     if (nextPart) {
-      if (audioItem.value case final audioItem?) {
-        final parts = audioItem.parts;
+      if (audioItem.value case DetailItem(:final parts)) {
         if (parts.length > 1) {
           final subId = this.subId.firstOrNull;
           final nextIndex = parts.indexWhere((e) => e.subId == subId) + 1;

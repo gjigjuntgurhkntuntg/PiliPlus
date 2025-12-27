@@ -505,7 +505,7 @@ class _MediaPageState extends CommonPageState<MinePage, MineController>
   ) {
     return switch (loadingState) {
       Loading() => const SizedBox.shrink(),
-      Success(:var response) => Builder(
+      Success(:final response) => Builder(
         builder: (context) {
           List<FavFolderInfo>? favFolderList = response.list;
           if (favFolderList == null || favFolderList.isEmpty) {
@@ -565,7 +565,7 @@ class _MediaPageState extends CommonPageState<MinePage, MineController>
           );
         },
       ),
-      Error(:var errMsg) => SizedBox(
+      Error(:final errMsg) => SizedBox(
         height: 160,
         child: Center(
           child: Text(

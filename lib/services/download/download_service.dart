@@ -440,7 +440,7 @@ class DownloadService extends GetxService {
         ]);
 
         final danmaku = res.removeAt(0).data;
-        for (var i in res) {
+        for (final i in res) {
           if (i.isSuccess) {
             danmaku.elems.addAll(i.data.elems);
           }
@@ -723,7 +723,7 @@ typedef SetNotifier = Set<VoidCallback>;
 
 extension SetNotifierExt on SetNotifier {
   void refresh() {
-    for (var i in this) {
+    for (final i in this) {
       i();
     }
   }

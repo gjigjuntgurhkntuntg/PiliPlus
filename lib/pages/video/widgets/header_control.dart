@@ -2897,7 +2897,7 @@ class HeaderControlState extends State<HeaderControl>
                     ),
                   ),
                 ),
-                if (introController case UgcIntroController ugc)
+                if (introController case final UgcIntroController ugc)
                   SizedBox(
                     width: 42,
                     height: 34,

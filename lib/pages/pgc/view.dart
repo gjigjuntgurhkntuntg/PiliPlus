@@ -84,7 +84,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
     LoadingState<List<TimelineResult>?> loadingState,
   ) => switch (loadingState) {
     Loading() => loadingWidget,
-    Success(:var response) =>
+    Success(:final response) =>
       response != null && response.isNotEmpty
           ? Builder(
               builder: (context) {
@@ -190,7 +190,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
               },
             )
           : const SizedBox.shrink(),
-    Error(:var errMsg) => GestureDetector(
+    Error(:final errMsg) => GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: controller.queryPgcTimeline,
       child: Container(
@@ -311,7 +311,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
   Widget _buildRcmdBody(LoadingState<List<PgcIndexItem>?> loadingState) {
     return switch (loadingState) {
       Loading() => const SliverToBoxAdapter(),
-      Success(:var response) =>
+      Success(:final response) =>
         response != null && response.isNotEmpty
             ? SliverGrid.builder(
                 gridDelegate: gridDelegate,
@@ -324,7 +324,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
                 itemCount: response.length,
               )
             : HttpError(onReload: controller.onReload),
-      Error(:var errMsg) => HttpError(
+      Error(:final errMsg) => HttpError(
         errMsg: errMsg,
         onReload: controller.onReload,
       ),
@@ -398,7 +398,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
   Widget _buildFollowBody(LoadingState<List<FavPgcItemModel>?> loadingState) {
     return switch (loadingState) {
       Loading() => loadingWidget,
-      Success(:var response) =>
+      Success(:final response) =>
         response != null && response.isNotEmpty
             ? ListView.builder(
                 controller: controller.followController,
@@ -428,7 +428,7 @@ class _PgcPageState extends CommonPageState<PgcPage, PgcController>
                   '还没有${widget.tabType == HomeTabType.bangumi ? '追番' : '追剧'}',
                 ),
               ),
-      Error(:var errMsg) => Container(
+      Error(:final errMsg) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         child: Text(

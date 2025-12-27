@@ -115,7 +115,7 @@ abstract class CommonIntroController extends GetxController
     if (!isShowOnlineTotal) {
       return;
     }
-    var result = await VideoHttp.onlineTotal(
+    final result = await VideoHttp.onlineTotal(
       aid: IdUtils.bv2av(bvid),
       bvid: bvid,
       cid: cid.value,
@@ -136,7 +136,7 @@ abstract class CommonIntroController extends GetxController
     if (stat == null) {
       return;
     }
-    var res = await VideoHttp.coinVideo(
+    final res = await VideoHttp.coinVideo(
       bvid: bvid,
       multiply: coin,
       selectLike: selectLike ? 1 : 0,
@@ -161,7 +161,7 @@ abstract class CommonIntroController extends GetxController
   }
 
   Future<void> viewLater() async {
-    var res = await (hasLater.value
+    final res = await (hasLater.value
         ? UserHttp.toViewDel(aids: IdUtils.bv2av(bvid).toString())
         : UserHttp.toViewLater(bvid: bvid));
     if (res['status']) hasLater.value = !hasLater.value;
@@ -242,7 +242,7 @@ mixin FavMixin on TripleMixin {
       queryVideoInFolder().then((res) async {
         if (res.isSuccess) {
           final hasFav = this.hasFav.value;
-          var result = hasFav
+          final result = hasFav
               ? await FavHttp.unfavAll(rid: rid, type: type)
               : await FavHttp.favVideo(
                   resources: '$rid:$type',
@@ -266,7 +266,7 @@ mixin FavMixin on TripleMixin {
     List<int?> addMediaIdsNew = [];
     List<int?> delMediaIdsNew = [];
     try {
-      for (var i in favFolderData.value.list!) {
+      for (final i in favFolderData.value.list!) {
         bool isFaved = favIds?.contains(i.id) == true;
         if (i.favState == 1) {
           if (!isFaved) {
@@ -282,7 +282,7 @@ mixin FavMixin on TripleMixin {
       if (kDebugMode) debugPrint(e.toString());
     }
     SmartDialog.showLoading(msg: '请求中');
-    var result = await FavHttp.favVideo(
+    final result = await FavHttp.favVideo(
       resources: '$rid:$type',
       addIds: addMediaIdsNew.join(','),
       delIds: delMediaIdsNew.join(','),

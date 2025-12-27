@@ -267,9 +267,7 @@ class _AudioPageState extends State<AudioPage> {
                                                     _controller.index!) {
                                                   _controller.index -= 1;
                                                 }
-                                                _controller.playlist!.removeAt(
-                                                  index,
-                                                );
+                                                playlist.removeAt(index);
                                                 (context as Element)
                                                     .markNeedsBuild();
                                               },
@@ -380,9 +378,7 @@ class _AudioPageState extends State<AudioPage> {
                                               if (index < _controller.index!) {
                                                 _controller.index -= 1;
                                               }
-                                              _controller.playlist!.removeAt(
-                                                index,
-                                              );
+                                              playlist.removeAt(index);
                                               (context as Element)
                                                   .markNeedsBuild();
                                             },

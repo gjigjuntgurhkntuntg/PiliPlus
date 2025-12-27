@@ -104,8 +104,8 @@ abstract final class Accounts {
   // }
 
   static Future<void> refresh() async {
-    for (var a in account.values) {
-      for (var t in a.type) {
+    for (final a in account.values) {
+      for (final t in a.type) {
         accountMode[t.index] = a;
       }
     }
@@ -126,7 +126,7 @@ abstract final class Accounts {
   }
 
   static Future<void> deleteAll(Set<Account> accounts) async {
-    var isLoginMain = Accounts.main.isLogin;
+    final isLoginMain = Accounts.main.isLogin;
     for (int i = 0; i < AccountType.values.length; i++) {
       if (accounts.contains(accountMode[i])) {
         accountMode[i] = AnonymousAccount();
