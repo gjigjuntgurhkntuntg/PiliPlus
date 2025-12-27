@@ -314,9 +314,7 @@ class _AudioPageState extends State<AudioPage> {
                                               children: [
                                                 if (isCurr) ...[
                                                   WidgetSpan(
-                                                    alignment:
-                                                        PlaceholderAlignment
-                                                            .bottom,
+                                                    alignment: .bottom,
                                                     child: Image.asset(
                                                       'assets/images/live.gif',
                                                       width: 16,
@@ -358,8 +356,7 @@ class _AudioPageState extends State<AudioPage> {
                                         children: [
                                           if (isCurr) ...[
                                             WidgetSpan(
-                                              alignment:
-                                                  PlaceholderAlignment.bottom,
+                                              alignment: .bottom,
                                               child: Image.asset(
                                                 'assets/images/live.gif',
                                                 width: 16,

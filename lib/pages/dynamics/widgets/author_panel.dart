@@ -89,9 +89,7 @@ class AuthorPanel extends StatelessWidget {
             onTap: moduleAuthor.type == 'AUTHOR_TYPE_NORMAL'
                 ? () {
                     feedBack();
-                    Get.toNamed(
-                      '/member?mid=${moduleAuthor.mid}',
-                    );
+                    Get.toNamed('/member?mid=${moduleAuthor.mid}');
                   }
                 : null,
             child: Row(
@@ -156,8 +154,8 @@ class AuthorPanel extends StatelessWidget {
                           color: theme.colorScheme.primary,
                         ),
                         strutStyle: const StrutStyle(
-                          leading: 0,
                           height: 1,
+                          leading: 0,
                           fontSize: 12,
                         ),
                       ),
