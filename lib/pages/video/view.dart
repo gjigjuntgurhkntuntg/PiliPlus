@@ -969,13 +969,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 左侧：播放器
+        // 左侧：播放器（占满垂直空间）
         SizedBox(
           width: videoWidth,
-          height: videoHeight,
+          height: maxHeight - padding.top,
           child: videoPlayer(
             width: videoWidth,
-            height: videoHeight,
+            height: maxHeight - padding.top,
           ),
         ),
         // 右侧：Tab内容区域
@@ -1002,7 +1002,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     if (videoDetailController.isVertical.value &&
         enableVerticalExpand &&
         !isPortrait) {
-      final double videoHeight = maxHeight - padding.vertical;
+      final double videoHeight = maxHeight - padding.top;
       final double width = videoHeight * 9 / 16;
       final videoWidth = isFullScreen ? maxWidth : width;
       final introWidth = maxWidth - padding.horizontal - width;
@@ -1010,7 +1010,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 左侧：播放器
+          // 左侧：播放器（占满垂直空间）
           SizedBox(
             width: videoWidth,
             height: videoHeight,
@@ -1042,16 +1042,18 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       width = maxWidth - clampDouble(maxWidth - width, 280, 425);
     }
     final videoWidth = isFullScreen ? maxWidth : width;
-    final double height = width * 9 / 16;
-    final videoHeight = isFullScreen ? maxHeight - padding.top : height;
-    if (height > maxHeight) {
+    final videoHeight = maxHeight - padding.top;
+
+    // 检查宽度是否合理，如果视频区域太窄则使用childSplit
+    final double minVideoWidth = (maxHeight - padding.top) * 9 / 16;
+    if (videoWidth < minVideoWidth) {
       return childSplit(16 / 9);
     }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 左侧：播放器
+        // 左侧：播放器（占满垂直空间）
         SizedBox(
           width: videoWidth,
           height: videoHeight,
