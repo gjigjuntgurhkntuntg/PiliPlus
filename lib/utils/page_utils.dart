@@ -677,7 +677,7 @@ abstract final class PageUtils {
           }
           return SafeArea(
             child: FractionallySizedBox(
-              widthFactor: 0.5,
+              widthFactor: 0.3,
               heightFactor: 1.0,
               alignment: Alignment.centerRight,
               child: child,
