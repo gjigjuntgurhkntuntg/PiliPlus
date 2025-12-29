@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/mouse_back.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
+import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/pages/live_room/view.dart';
 import 'package:PiliPlus/pages/video/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
@@ -201,6 +202,17 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     }
 
     extraArgs.remove('sourceType');
+
+    // 反序列化 entry 对象（如果存在）
+    final entryArg = extraArgs['entry'];
+    if (entryArg is Map<String, dynamic>) {
+      try {
+        extraArgs['entry'] = BiliDownloadEntryInfo.fromJson(entryArg);
+      } catch (_) {
+        // 如果反序列化失败，移除 entry
+        extraArgs.remove('entry');
+      }
+    }
 
     return {
       'videoType': videoType,

@@ -75,6 +75,20 @@ class PlayerWindowManager {
         final result = v.map(serializeValue).where((e) => e != null).toList();
         return result.isNotEmpty ? result : null;
       }
+      // Try to serialize objects with toJson method (like BiliDownloadEntryInfo)
+      try {
+        // Use reflection to check if object has toJson method
+        final dynamic obj = v;
+        if (obj is Object && obj.runtimeType.toString() != 'Object') {
+          // Try to call toJson() if it exists
+          final json = (obj as dynamic).toJson();
+          if (json is Map<String, dynamic>) {
+            return serializeValue(json);
+          }
+        }
+      } catch (_) {
+        // If toJson doesn't exist or fails, continue to skip
+      }
       // Cannot serialize complex objects (like PgcInfoModel), skip them
       // These objects are not needed in the player window anyway
       return null;

@@ -178,7 +178,9 @@ class BiliDownloadEntryInfo with MultiSelectData {
         ep: json['ep'] != null
             ? EpInfo.fromJson(json['ep'] as Map<String, dynamic>)
             : null,
-      );
+      )
+      ..pageDirPath = json['page_dir_path'] as String? ?? ''
+      ..entryDirPath = json['entry_dir_path'] as String? ?? '';
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'media_type': mediaType,
@@ -208,6 +210,8 @@ class BiliDownloadEntryInfo with MultiSelectData {
     'season_id': ?seasonId,
     'source': ?source?.toJson(),
     'ep': ?ep?.toJson(),
+    'page_dir_path': pageDirPath,
+    'entry_dir_path': entryDirPath,
   };
 
   @override

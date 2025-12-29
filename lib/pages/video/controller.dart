@@ -458,7 +458,24 @@ class VideoDetailController extends GetxController
         (sourceType != SourceType.normal && !isFileSource);
 
     if (isFileSource) {
-      initFileSource(args['entry']);
+      // 尝试从 args 获取 entry，如果为 null 则从下载服务中查找
+      BiliDownloadEntryInfo? entryArg = args['entry'];
+      if (entryArg == null && Get.isRegistered<DownloadService>()) {
+        // 从下载服务中通过 cid 查找 entry
+        final downloadService = Get.find<DownloadService>();
+        entryArg = downloadService.downloadList.firstWhereOrNull(
+          (e) => e.cid == cid.value,
+        );
+      }
+      if (entryArg != null) {
+        initFileSource(entryArg);
+      } else {
+        // 如果仍然找不到 entry，则回退到列表播放模式
+        isFileSource = false;
+        isPlayAll = true;
+        watchLaterTitle = '离线缓存';
+        getMediaList();
+      }
     } else if (isPlayAll) {
       watchLaterTitle = _isOfflineListPlayAll
           ? '离线缓存'

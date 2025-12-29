@@ -3,6 +3,7 @@ import 'package:PiliPlus/models_new/video/video_detail/stat_detail.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/download/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
+import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
@@ -65,16 +66,33 @@ class LocalIntroController extends CommonIntroController {
     if (argTitle is String && argTitle.trim().isNotEmpty) {
       videoDetail.value.title = argTitle;
     }
-    final controller = Get.find<DownloadPageController>();
+
+    // 优先从 DownloadPageController 获取数据（如果已注册）
+    // 否则从 DownloadService 获取数据
+    _loadDownloadList();
+  }
+
+  Future<void> _loadDownloadList() async {
     final list = <BiliDownloadEntryInfo>[];
-    for (final e in controller.pages) {
-      final items = e.entries..sort((a, b) => a.sortKey.compareTo(b.sortKey));
-      final completed = items.where((e) => e.isCompleted);
-      list.addAllIf(completed.isNotEmpty, completed);
-      if (completed.length == 1) {
-        aidSet.add(e.pageId);
+
+    if (Get.isRegistered<DownloadPageController>()) {
+      // 主窗口：从 DownloadPageController 获取
+      final controller = Get.find<DownloadPageController>();
+      for (final e in controller.pages) {
+        final items = e.entries..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+        final completed = items.where((e) => e.isCompleted);
+        list.addAllIf(completed.isNotEmpty, completed);
+        if (completed.length == 1) {
+          aidSet.add(e.pageId);
+        }
       }
+    } else if (Get.isRegistered<DownloadService>()) {
+      // 新窗口：从 DownloadService 获取，需要等待初始化完成
+      final downloadService = Get.find<DownloadService>();
+      await downloadService.waitForInitialization;
+      list.addAll(downloadService.downloadList);
     }
+
     this.list.value = list;
     final currCid = videoDetailCtr.cid.value;
     final index = list.indexWhere((e) => e.cid == currCid);
