@@ -252,9 +252,12 @@ class VideoDetailController extends GetxController
             this.videoHeight = maxVideoHeight;
           } else {
             // current maxVideoHeight
-            final currentHeight = DoubleExt(maxVideoHeight - scrollCtr.offset)
-                .toPrecision(2);
-            double minVideoHeightPrecise = DoubleExt(minVideoHeight).toPrecision(2);
+            final currentHeight = DoubleExt(
+              maxVideoHeight - scrollCtr.offset,
+            ).toPrecision(2);
+            double minVideoHeightPrecise = DoubleExt(
+              minVideoHeight,
+            ).toPrecision(2);
             if (currentHeight == minVideoHeightPrecise) {
               isExpanding = true;
               this.videoHeight = minVideoHeight;
@@ -2159,19 +2162,24 @@ class VideoDetailController extends GetxController
     int videoDuration,
   ) {
     try {
-      final index = mediaList.indexWhere(
-        (item) => item.aid == videoAid || item.bvid == videoBvid,
+      // 使用 aid 和 bvid 双重匹配确保准确找到目标视频
+      final targetItem = mediaList.firstWhereOrNull(
+        (item) => item.aid == videoAid && item.bvid == videoBvid,
       );
 
-      if (index != -1 && videoDuration > 0) {
-        final item = mediaList[index];
+      if (targetItem != null && videoDuration > 0) {
         final newProgressPercent = progressSeconds == -1
             ? 100.0 // 已完成
             : (progressSeconds / videoDuration * 100).clamp(0.0, 100.0);
 
-        if ((item.progressPercent ?? 0) != newProgressPercent) {
-          item.progressPercent = newProgressPercent;
+        if ((targetItem.progressPercent ?? 0) != newProgressPercent) {
+          targetItem.progressPercent = newProgressPercent;
           mediaList.refresh();
+          if (kDebugMode) {
+            debugPrint(
+              '✅ 更新 mediaList 进度: aid=$videoAid, bvid=$videoBvid -> $newProgressPercent%',
+            );
+          }
         }
       }
     } catch (e) {
@@ -2195,26 +2203,43 @@ class VideoDetailController extends GetxController
 
         final laterController = Get.find<LaterController>(tag: tag);
         if (laterController.loadingState.value.data case List list?) {
-          // 查找当前播放的视频
-          final index = list.indexWhere(
-            (item) => item.aid == videoAid || item.bvid == videoBvid,
+          // 查找当前播放的视频（使用 aid 和 bvid 双重匹配确保准确性）
+          final targetItem = list.firstWhereOrNull(
+            (item) => item.aid == videoAid && item.bvid == videoBvid,
           );
 
-          if (index != -1) {
-            final item = list[index];
-
+          if (targetItem != null) {
             // 更新进度（秒数格式）
             final newProgress = progressSeconds == -1
                 ? -1 // 已完成标记
                 : progressSeconds;
 
-            if (item.progress != newProgress) {
-              item.progress = newProgress;
+            if (targetItem.progress != newProgress) {
+              targetItem.progress = newProgress;
               // 延迟到下一帧更新状态，避免在 widget tree 锁定时触发重建
               SchedulerBinding.instance.addPostFrameCallback((_) {
-                laterController.loadingState.value = Success(List.from(list));
-                if (kDebugMode) {
-                  debugPrint('✅ 本地更新稍后再看进度: ${item.title} -> ${newProgress}s');
+                // 再次确认该 item 仍然在列表中，避免在异步过程中列表已变化
+                if (laterController.loadingState.value.data
+                    case List currentList?) {
+                  final stillExists = currentList.any(
+                    (item) => item.aid == videoAid && item.bvid == videoBvid,
+                  );
+                  if (stillExists) {
+                    laterController.loadingState.value = Success(
+                      List.from(currentList),
+                    );
+                    if (kDebugMode) {
+                      debugPrint(
+                        '✅ 本地更新稍后再看进度: aid=$videoAid, bvid=$videoBvid -> ${newProgress}s',
+                      );
+                    }
+                  } else {
+                    if (kDebugMode) {
+                      debugPrint(
+                        '⚠️ 视频已不在列表中，跳过进度更新: aid=$videoAid, bvid=$videoBvid',
+                      );
+                    }
+                  }
                 }
               });
             }
