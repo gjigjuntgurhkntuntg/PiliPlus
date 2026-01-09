@@ -1133,6 +1133,7 @@ class VideoDetailController extends GetxController
   }
 
   void initSkip() {
+    if (isClosed) return;
     if (segmentList.isNotEmpty) {
       positionSubscription?.cancel();
       positionSubscription = plPlayerController
@@ -1467,11 +1468,11 @@ class VideoDetailController extends GetxController
       seasonId: isUgc ? null : seasonId,
       pgcType: isUgc ? null : pgcType,
       videoType: videoType,
-      onInit: () async {
+      onInit: () {
         if (videoState.value is! Success) {
           videoState.value = const Success(null);
         }
-        await setSubtitle(vttSubtitlesIndex.value);
+        setSubtitle(vttSubtitlesIndex.value);
         // 离线视频：监听视频尺寸变化来更新竖屏状态
         // 因为此时视频尺寸可能还未解码完成，所以需要通过流监听
         if (dataSourceType == DataSourceType.file) {
@@ -1501,6 +1502,8 @@ class VideoDetailController extends GetxController
           ? effectiveLocalEntry?.mediaType
           : null,
     );
+
+    if (isClosed) return;
 
     if (!isFileSource) {
       if (plPlayerController.enableBlock) {
@@ -1608,8 +1611,8 @@ class VideoDetailController extends GetxController
       language: currLang.value,
     );
 
-    if (result.isSuccess) {
-      data = result.data;
+    if (result case Success(:final response)) {
+      data = response;
 
       languages.value = data.language?.items;
       currLang.value = data.curLanguage;
@@ -1881,7 +1884,7 @@ class VideoDetailController extends GetxController
       final result = await VideoHttp.vttSubtitles(
         subtitles[index - 1].subtitleUrl!,
       );
-      if (result != null) {
+      if (!isClosed && result != null) {
         vttSubtitles[index - 1] = result;
         await setSub(result);
       }
@@ -2663,9 +2666,8 @@ class VideoDetailController extends GetxController
       qn: currentVideoQa.value?.code,
     );
     SmartDialog.dismiss();
-    if (res.isSuccess) {
-      final data = res.data;
-      final first = data.durl?.firstOrNull;
+    if (res case Success(:final response)) {
+      final first = response.durl?.firstOrNull;
       if (first == null || first.playUrls.isEmpty) {
         SmartDialog.showToast('不支持投屏');
         return;

@@ -185,7 +185,7 @@ class HistoryItem extends StatelessWidget {
               child: SizedBox(
                 width: 29,
                 height: 29,
-                child: PopupMenuButton<String>(
+                child: PopupMenuButton(
                   padding: EdgeInsets.zero,
                   tooltip: '功能菜单',
                   icon: Icon(
@@ -194,13 +194,13 @@ class HistoryItem extends StatelessWidget {
                     size: 18,
                   ),
                   position: PopupMenuPosition.under,
-                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  itemBuilder: (_) => [
                     if (item.authorMid != null &&
                         item.authorName?.isNotEmpty == true)
-                      PopupMenuItem<String>(
+                      PopupMenuItem(
                         onTap: () =>
                             Get.toNamed('/member?mid=${item.authorMid}'),
-                        height: 35,
+                        height: 38,
                         child: Row(
                           children: [
                             const Icon(
@@ -227,7 +227,7 @@ class HistoryItem extends StatelessWidget {
                           );
                           SmartDialog.showToast(res['msg']);
                         },
-                        height: 35,
+                        height: 38,
                         child: const Row(
                           children: [
                             Icon(Icons.watch_later_outlined, size: 16),
@@ -285,7 +285,7 @@ class HistoryItem extends StatelessWidget {
                             SmartDialog.showToast(e.toString());
                           }
                         },
-                        height: 35,
+                        height: 38,
                         child: const Row(
                           children: [
                             Icon(MdiIcons.folderDownloadOutline, size: 16),
@@ -296,7 +296,7 @@ class HistoryItem extends StatelessWidget {
                       ),
                     PopupMenuItem<String>(
                       onTap: () => onDelete(item.kid!, business!),
-                      height: 35,
+                      height: 38,
                       child: const Row(
                         children: [
                           Icon(Icons.close_outlined, size: 16),

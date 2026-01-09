@@ -33,6 +33,7 @@ import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/playback/playback_foreground_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/extension/box_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
@@ -331,7 +332,6 @@ class PlPlayerController {
 
   // 弹幕相关配置
   late final enableTapDm = PlatformUtils.isMobile && Pref.enableTapDm;
-  late int danmakuWeight = Pref.danmakuWeight;
   late RuleFilter filters = Pref.danmakuFilterRule;
   // 关联弹幕控制器
   DanmakuController<DanmakuExtra>? danmakuController;
@@ -1740,7 +1740,7 @@ class PlPlayerController {
   }
 
   void putSubtitleSettings() {
-    setting.putAll({
+    setting.putAllNE({
       SettingBoxKey.subtitleFontScale: subtitleFontScale,
       SettingBoxKey.subtitleFontScaleFS: subtitleFontScaleFS,
       SettingBoxKey.subtitlePaddingH: subtitlePaddingH,
@@ -1765,6 +1765,7 @@ class PlPlayerController {
     }
 
     _playerCount = 0;
+    danmakuController = null;
     _stopListenerForVideoFit();
     _stopListenerForEnterFullScreen();
     disableAutoEnterPip();

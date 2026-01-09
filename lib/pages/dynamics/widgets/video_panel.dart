@@ -181,11 +181,11 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                             ],
                             if (video.stat case final stat?) ...[
                               Text(
-                                '${NumUtils.numFormat(stat.play)}次围观',
+                                '${NumUtils.numFormat(stat.play)}播放',
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                '${NumUtils.numFormat(stat.danmu)}条弹幕',
+                                '${NumUtils.numFormat(stat.danmu)}弹幕',
                               ),
                             ],
                             const Spacer(),

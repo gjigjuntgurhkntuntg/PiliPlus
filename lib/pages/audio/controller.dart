@@ -9,7 +9,6 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
     show
         DetailItem,
         PlayURLResp,
-        PlaylistResp,
         PlaylistSource,
         PlayInfo,
         ThumbUpReq_ThumbType,
@@ -213,30 +212,29 @@ class AudioController extends GetxController
       extraId: extraId,
       order: order,
     );
-    if (res.isSuccess) {
-      final PlaylistResp data = res.data;
+    if (res case Success(:final response)) {
       if (isInit) {
-        late final paginationReply = data.paginationReply;
-        _prev = data.reachStart ? null : paginationReply.prev;
-        _next = data.reachEnd ? null : paginationReply.next;
-        final index = data.list.indexWhere((e) => e.item.oid == oid);
+        late final paginationReply = response.paginationReply;
+        _prev = response.reachStart ? null : paginationReply.prev;
+        _next = response.reachEnd ? null : paginationReply.next;
+        final index = response.list.indexWhere((e) => e.item.oid == oid);
         if (index != -1) {
           this.index = index;
-          _updateCurrItem(data.list[index]);
-          playlist = data.list;
+          _updateCurrItem(response.list[index]);
+          playlist = response.list;
           // 更新媒体通知列表控制模式
           _updateListControlMode();
         }
       } else if (isLoadPrev) {
-        _prev = data.reachStart ? null : data.paginationReply.prev;
-        if (data.list.isNotEmpty) {
-          index += data.list.length;
-          playlist?.insertAll(0, data.list);
+        _prev = response.reachStart ? null : response.paginationReply.prev;
+        if (response.list.isNotEmpty) {
+          index += response.list.length;
+          playlist?.insertAll(0, response.list);
         }
       } else if (isLoadNext) {
-        _next = data.reachEnd ? null : data.paginationReply.next;
-        if (data.list.isNotEmpty) {
-          playlist?.addAll(data.list);
+        _next = response.reachEnd ? null : response.paginationReply.next;
+        if (response.list.isNotEmpty) {
+          playlist?.addAll(response.list);
         }
       }
     } else {
@@ -274,8 +272,8 @@ class AudioController extends GetxController
       oid: oid,
       subId: subId,
     );
-    if (res.isSuccess) {
-      _onPlay(res.data);
+    if (res case Success(:final response)) {
+      _onPlay(response);
       return true;
     } else {
       res.toast();
@@ -651,7 +649,7 @@ class AudioController extends GetxController
           ? ThumbUpReq_ThumbType.LIKE
           : ThumbUpReq_ThumbType.CANCEL_LIKE,
     );
-    if (res.isSuccess) {
+    if (res case Success(:final response)) {
       hasLike.value = newVal;
       try {
         audioItem.value!.stat
@@ -659,7 +657,7 @@ class AudioController extends GetxController
           ..like += newVal ? 1 : -1;
         audioItem.refresh();
       } catch (_) {}
-      SmartDialog.showToast(res.data.message);
+      SmartDialog.showToast(response.message);
     } else {
       res.toast();
     }
@@ -676,10 +674,9 @@ class AudioController extends GetxController
       subId: subId,
       itemType: itemType,
     );
-    if (res.isSuccess) {
-      final data = res.data;
+    if (res case Success(:final response)) {
       hasLike.value = true;
-      if (data.coinOk && !hasCoin) {
+      if (response.coinOk && !hasCoin) {
         coinNum.value = 2;
         GlobalData().afterCoin(2);
         try {
