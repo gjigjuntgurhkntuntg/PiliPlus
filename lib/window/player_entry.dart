@@ -31,17 +31,14 @@ final List<GetPage> _playerWindowRoutes = [
   GetPage(
     name: '/',
     page: () => const _PlayerWindowPlaceholder(),
-    transition: Transition.noTransition,
   ),
   GetPage(
     name: '/videoV',
     page: () => const VideoDetailPageV(),
-    transition: Transition.noTransition,
   ),
   GetPage(
     name: '/liveRoom',
     page: () => const LiveRoomPage(),
-    transition: Transition.noTransition,
   ),
 ];
 
