@@ -109,7 +109,7 @@ class PlayerWindowService {
     return {
       'customColor': Pref.customColor,
       'dynamicColor': Pref.dynamicColor,
-      'schemeVariant': Pref.schemeVariant,
+      'schemeVariant': Pref.schemeVariant.index,
       'themeMode': Pref.themeMode.index,
       'showWindowTitleBar': Pref.showWindowTitleBar,
       'defaultTextScale': Pref.defaultTextScale,

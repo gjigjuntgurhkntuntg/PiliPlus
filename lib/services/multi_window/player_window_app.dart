@@ -216,7 +216,6 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   Widget build(BuildContext context) {
     Color brandColor = colorThemeTypes[Pref.customColor].color;
     bool isDynamicColor = Pref.dynamicColor;
-    FlexSchemeVariant variant = FlexSchemeVariant.values[Pref.schemeVariant];
 
     return DynamicColorBuilder(
       builder: ((ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
@@ -229,13 +228,13 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
           lightColorScheme = SeedColorScheme.fromSeeds(
             primaryKey: brandColor,
             brightness: Brightness.light,
-            variant: variant,
+            variant: Pref.schemeVariant,
             useExpressiveOnContainerColors: false,
           );
           darkColorScheme = SeedColorScheme.fromSeeds(
             primaryKey: brandColor,
             brightness: Brightness.dark,
-            variant: variant,
+            variant: Pref.schemeVariant,
             useExpressiveOnContainerColors: false,
           );
         }
