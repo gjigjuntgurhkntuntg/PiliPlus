@@ -102,6 +102,26 @@ abstract final class GStorage {
     });
   }
 
+  /// Export all GStorage.setting entries as JSON-safe Map
+  /// 用于窗口间传递设置数据
+  static Map<String, dynamic> exportAllSettingsAsJson() {
+    final result = <String, dynamic>{};
+    final box = setting;
+    for (final key in box.keys) {
+      final value = box.get(key);
+      // Only include JSON-serializable values
+      if (value == null ||
+          value is num ||
+          value is String ||
+          value is bool ||
+          value is List ||
+          value is Map) {
+        result[key.toString()] = value;
+      }
+    }
+    return result;
+  }
+
   static Future<void> importAllSettings(String data) =>
       importAllJsonSettings(jsonDecode(data));
 

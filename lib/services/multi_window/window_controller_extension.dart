@@ -1,3 +1,4 @@
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -38,7 +39,7 @@ extension WindowControllerExtension on WindowController {
 
   /// 初始化主窗口方法处理器
   Future<void> initMainWindowHandler() {
-    return setWindowMethodHandler((call) {
+    return setWindowMethodHandler((call) async {
       switch (call.method) {
         case 'window_center':
           return windowManager.center();
@@ -60,12 +61,30 @@ extension WindowControllerExtension on WindowController {
           final args = call.arguments as Map?;
           final isOn = args?['isOn'] as bool? ?? false;
           return windowManager.setAlwaysOnTop(isOn);
+        case 'syncPlayerSettings':
+          // 接收并保存来自播放器子窗口的设置
+          final args = call.arguments;
+          if (args != null && args is Map) {
+            // 安全地转换 Map<Object?, Object?> 为 Map<String, dynamic>
+            final settings = Map<String, dynamic>.from(args);
+            await _syncPlayerSettingsToMain(settings);
+          }
+          return;
         default:
           throw MissingPluginException(
             'Not implemented method: ${call.method}',
           );
       }
     });
+  }
+
+  /// 将播放器子窗口的设置同步到主窗口
+  Future<void> _syncPlayerSettingsToMain(Map<String, dynamic> settings) async {
+    try {
+      await GStorage.setting.putAll(settings);
+    } catch (e) {
+      // 忽略同步错误，避免影响窗口关闭
+    }
   }
 
   /// 让目标窗口居中

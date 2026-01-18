@@ -12,6 +12,7 @@ import 'package:PiliPlus/plugin/player_window_manager.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:collection/collection.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -475,8 +476,24 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
 
   @override
   Future<void> onWindowClose() async {
-    // Note: Cannot save to storage since Hive is not initialized in sub-window
-    // Bounds will be saved by main window via IPC if needed
+    // 同步设置到主窗口
+    try {
+      // 1. 导出所有设置
+      final allSettings = GStorage.exportAllSettingsAsJson();
+
+      // 2. 保存窗口尺寸和位置
+      final bounds = await windowManager.getBounds();
+      allSettings['playerWindowSize'] = [bounds.width, bounds.height];
+      allSettings['playerWindowPosition'] = [bounds.left, bounds.top];
+
+      // 3. 发送到主窗口保存
+      final mainWindow = await PlayerWindowService.findMainWindow();
+      if (mainWindow != null) {
+        await mainWindow.invokeMethod('syncPlayerSettings', allSettings);
+      }
+    } catch (e) {
+      debugPrint('Failed to sync player settings: $e');
+    }
 
     // 销毁播放器，确保视频停止播放
     try {

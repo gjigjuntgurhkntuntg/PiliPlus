@@ -120,7 +120,7 @@ class PlayerWindowService {
       'playerWindowPosition': Pref.playerWindowPosition,
       'playerWindowAlwaysOnTop': Pref.playerWindowAlwaysOnTop,
       // Export all settings for sub-window in-memory storage
-      'allSettings': _exportAllSettingsAsJson(),
+      'allSettings': GStorage.exportAllSettingsAsJson(),
       // Export account data for sub-window
       'accountData': _exportAccountData(),
     };
@@ -140,25 +140,6 @@ class PlayerWindowService {
       debugPrint('[PlayerWindowService] Exported account data: $json');
     }
     return json;
-  }
-
-  /// Export all GStorage.setting entries as JSON-safe Map
-  Map<String, dynamic> _exportAllSettingsAsJson() {
-    final result = <String, dynamic>{};
-    final box = GStorage.setting;
-    for (final key in box.keys) {
-      final value = box.get(key);
-      // Only include JSON-serializable values
-      if (value == null ||
-          value is num ||
-          value is String ||
-          value is bool ||
-          value is List ||
-          value is Map) {
-        result[key.toString()] = value;
-      }
-    }
-    return result;
   }
 
   /// 向播放器窗口发送新视频参数
