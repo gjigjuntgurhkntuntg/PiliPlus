@@ -119,6 +119,12 @@ class VideoDetailController extends GetxController
   late final RxList<MediaListItemModel> mediaList = <MediaListItemModel>[].obs;
   late String watchLaterTitle;
 
+  // 视频切换状态追踪：防止切换过程中退出时保存错误的进度
+  bool _isSwitchingVideo = false;
+  int? _lastSavedAid;
+  String? _lastSavedBvid;
+  int? _lastSavedCid;
+
   /// tabs相关配置
   late TabController tabCtr;
 
@@ -1519,6 +1525,9 @@ class VideoDetailController extends GetxController
     }
 
     defaultST = null;
+
+    // 播放器初始化完成，重置视频切换标志
+    _isSwitchingVideo = false;
   }
 
   bool isQuerying = false;
@@ -2089,6 +2098,12 @@ class VideoDetailController extends GetxController
         );
       }
 
+      // 标记正在切换视频，并保存当前视频信息
+      _isSwitchingVideo = true;
+      _lastSavedAid = currentAid;
+      _lastSavedBvid = currentBvid;
+      _lastSavedCid = currentCid;
+
       _updateListProgressSync(
         progressSeconds,
         currentAid,
@@ -2295,15 +2310,20 @@ class VideoDetailController extends GetxController
         plPlayerController.position.value != Duration.zero &&
         data.timeLength != null) {
       final playedTime = plPlayerController.position.value;
-      final currentAid = aid;
-      final currentBvid = bvid;
-      final currentCid = cid.value;
-      final currentDuration = data.timeLength ?? 0;
       final progressSeconds = playedTime.inSeconds;
+
+      // 如果正在切换视频，使用切换前保存的视频信息
+      // 防止将旧视频的进度错误地保存到新视频上
+      final currentAid = _isSwitchingVideo ? (_lastSavedAid ?? aid) : aid;
+      final currentBvid = _isSwitchingVideo ? (_lastSavedBvid ?? bvid) : bvid;
+      final currentCid = _isSwitchingVideo
+          ? (_lastSavedCid ?? cid.value)
+          : cid.value;
+      final currentDuration = data.timeLength ?? 0;
 
       if (kDebugMode) {
         debugPrint(
-          '🚪 窗口关闭，保存最后的进度: bvid=$currentBvid, progress=${progressSeconds}s',
+          '🚪 窗口关闭，保存最后的进度: bvid=$currentBvid, progress=${progressSeconds}s${_isSwitchingVideo ? ' (切换中，使用已保存的视频ID)' : ''}',
         );
       }
 
