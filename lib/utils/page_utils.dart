@@ -769,7 +769,7 @@ abstract final class PageUtils {
     int? pgcType,
     String? cover,
     String? title,
-    int? progress,
+    int? progress, // milliseconds
     Map? extraArguments,
     bool off = false,
   }) async {
@@ -845,7 +845,7 @@ abstract final class PageUtils {
   static bool viewPgcFromUri(
     String uri, {
     bool isPgc = true,
-    String? progress,
+    int? progress, // milliseconds
     int? aid,
   }) {
     RegExpMatch? match = _pgcRegex.firstMatch(uri);
@@ -889,7 +889,7 @@ abstract final class PageUtils {
   static Future<void> viewPgc({
     dynamic seasonId,
     dynamic epId,
-    String? progress,
+    int? progress, // milliseconds
   }) async {
     try {
       SmartDialog.showLoading(msg: '资源获取中');
@@ -909,7 +909,7 @@ abstract final class PageUtils {
             seasonId: response.seasonId,
             epId: episode.epId,
             cover: episode.cover,
-            progress: progress == null ? null : int.tryParse(progress),
+            progress: progress,
             extraArguments: {
               'pgcApi': true,
               'pgcItem': response,
@@ -958,7 +958,7 @@ abstract final class PageUtils {
             epId: episode.epId,
             pgcType: response.type,
             cover: episode.cover,
-            progress: progress == null ? null : int.tryParse(progress),
+            progress: progress,
             extraArguments: {
               'pgcItem': response,
             },
