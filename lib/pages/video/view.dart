@@ -1088,7 +1088,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         enableVerticalExpand &&
         !isPortrait) {
       final double videoHeight = maxHeight - padding.top;
-      final double width = videoHeight / StyleString.aspectRatio16x9;
+      final double width = videoHeight * 9 / 16;
       final videoWidth = isFullScreen ? maxWidth : width;
       final introWidth = maxWidth - padding.horizontal - width;
       final introHeight = maxHeight - padding.top;
@@ -1130,7 +1130,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     final videoHeight = maxHeight - padding.top;
 
     // 检查宽度是否合理，如果视频区域太窄则使用childSplit
-    final double minVideoWidth = (maxHeight - padding.top) * StyleString.aspectRatio16x9;
+    final double minVideoWidth = (maxHeight - padding.top) * 9 / 16;
     if (videoWidth < minVideoWidth) {
       return childSplit(16 / 9);
     }
