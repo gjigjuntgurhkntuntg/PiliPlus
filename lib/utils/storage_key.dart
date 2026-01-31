@@ -156,6 +156,7 @@ abstract final class SettingBoxKey {
   static const String minimizeOnExit = 'minimizeOnExit',
       windowSize = 'windowSize',
       windowPosition = 'windowPosition',
+      windowScaleFactor = 'windowScaleFactor',
       isWindowMaximized = 'isWindowMaximized',
       showWindowTitleBar = 'showWindowTitleBar',
       desktopVolume = 'desktopVolume',

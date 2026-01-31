@@ -299,30 +299,20 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
   /// 坐标会出现偏移。此方法通过保存的缩放比例和当前的 devicePixelRatio 来校正坐标。
   Future<Offset> _correctPositionForDpi(Offset savedPosition) async {
     try {
-      // 如果没有保存缩放比例，直接返回原位置
+      var dx = savedPosition.dx;
+      var dy = savedPosition.dy;
+
+      // 如果有保存的缩放比例，进行 DPI 校正
       final savedScale = _savedScaleFactor;
-      if (savedScale == null) {
-        return savedPosition;
-      }
-
-      // 获取当前的 devicePixelRatio（窗口启动时 Flutter 使用的值）
       final currentScale = windowManager.getDevicePixelRatio();
-
-      // 如果保存时的缩放比例和当前的相同，无需校正
-      if ((savedScale - currentScale).abs() < 0.01) {
-        return savedPosition;
+      if (savedScale != null && (savedScale - currentScale).abs() >= 0.01) {
+        // 计算物理坐标（保存的逻辑坐标 × 保存时的缩放比例）
+        // 将物理坐标转换为当前 devicePixelRatio 下的逻辑坐标
+        dx = (dx * savedScale) / currentScale;
+        dy = (dy * savedScale) / currentScale;
       }
 
-      // 计算物理坐标（保存的逻辑坐标 × 保存时的缩放比例）
-      final physicalX = savedPosition.dx * savedScale;
-      final physicalY = savedPosition.dy * savedScale;
-
-      // 将物理坐标转换为当前 devicePixelRatio 下的逻辑坐标
-      // setPosition() 会用当前 devicePixelRatio 乘以这个值来还原物理坐标
-      final correctedX = physicalX / currentScale;
-      final correctedY = physicalY / currentScale;
-
-      return Offset(correctedX, correctedY);
+      return Offset(dx, dy);
     } catch (e) {
       debugPrint('Failed to correct position for DPI: $e');
       return savedPosition;

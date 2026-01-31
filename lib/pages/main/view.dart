@@ -127,7 +127,11 @@ class _MainAppState extends PopScopeState<MainApp>
       return;
     }
     final Offset offset = await windowManager.getPosition();
-    _setting.put(SettingBoxKey.windowPosition, [offset.dx, offset.dy]);
+    _setting.putAll({
+      SettingBoxKey.windowPosition: [offset.dx, offset.dy],
+      // 保存当前 devicePixelRatio，用于恢复时校正坐标
+      SettingBoxKey.windowScaleFactor: windowManager.getDevicePixelRatio(),
+    });
   }
 
   @override
@@ -139,6 +143,8 @@ class _MainAppState extends PopScopeState<MainApp>
     _setting.putAll({
       SettingBoxKey.windowSize: [bounds.width, bounds.height],
       SettingBoxKey.windowPosition: [bounds.left, bounds.top],
+      // 保存当前 devicePixelRatio，用于恢复时校正坐标
+      SettingBoxKey.windowScaleFactor: windowManager.getDevicePixelRatio(),
     });
   }
 

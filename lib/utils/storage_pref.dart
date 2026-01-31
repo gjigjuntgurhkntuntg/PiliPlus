@@ -918,6 +918,9 @@ abstract final class Pref {
   static List<double>? get windowPosition =>
       (_setting.get(SettingBoxKey.windowPosition) as List?)?.fromCast<double>();
 
+  static double? get windowScaleFactor =>
+      _setting.get(SettingBoxKey.windowScaleFactor) as double?;
+
   static bool get isWindowMaximized =>
       _setting.get(SettingBoxKey.isWindowMaximized, defaultValue: false);
 
