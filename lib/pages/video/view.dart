@@ -544,14 +544,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           if (targetIndex != -1) {
             final targetItem = videoDetailController.mediaList[targetIndex];
 
-            // 设置目标视频的进度
-            if (audioPosition > Duration.zero) {
-              videoDetailController.playedTime = audioPosition;
-              videoDetailController.defaultST = audioPosition;
-            }
-
-            // 触发切换逻辑（注意：不需要再保存旧视频进度，因为听视频切换时已经保存了）
-            ugcIntroController.onChangeEpisode(targetItem, fromAudioPage: true);
+            // 触发切换逻辑，传递听视频的进度
+            // 注意：不需要再保存旧视频进度，因为听视频切换时已经保存了
+            ugcIntroController.onChangeEpisode(
+              targetItem,
+              fromAudioPage: true,
+              audioPosition: audioPosition,
+            );
           }
         }
       } else {

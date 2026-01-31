@@ -497,6 +497,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     BaseEpisodeItem episode, {
     bool isStein = false,
     bool fromAudioPage = false, // 从听视频页返回时为true，跳过保存进度
+    Duration? audioPosition, // 从听视频页返回时的播放进度
   }) async {
     try {
       final String bvid = episode.bvid ?? this.bvid;
@@ -537,6 +538,14 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         ..bvid = bvid
         ..aid = aid
         ..cid.value = cid;
+
+      // 从听视频页返回时，在 onReset 后设置进度（onReset 会清除 playedTime 和 defaultST）
+      if (fromAudioPage &&
+          audioPosition != null &&
+          audioPosition > Duration.zero) {
+        videoDetailCtr.playedTime = audioPosition;
+        videoDetailCtr.defaultST = audioPosition;
+      }
 
       // 重要：在后台/锁屏场景下，必须等待 queryVideoUrl 完成才能继续
       // 否则播放器尚未初始化好，自动播放会失败
