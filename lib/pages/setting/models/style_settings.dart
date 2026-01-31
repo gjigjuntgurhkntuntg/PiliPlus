@@ -469,7 +469,7 @@ void _showUiScaleDialog(
             GStorage.setting.delete(SettingBoxKey.uiScale).whenComplete(() {
               setState();
               Get.appUpdate();
-              ScaledWidgetsFlutterBinding.instance.setScaleFactor(1.0);
+              ScaledWidgetsFlutterBinding.instance.scaleFactor = 1.0;
             });
           },
           child: const Text('重置'),
@@ -488,7 +488,7 @@ void _showUiScaleDialog(
               () {
                 setState();
                 Get.appUpdate();
-                ScaledWidgetsFlutterBinding.instance.setScaleFactor(uiScale);
+                ScaledWidgetsFlutterBinding.instance.scaleFactor = uiScale;
               },
             );
           },

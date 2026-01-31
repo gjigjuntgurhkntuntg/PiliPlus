@@ -1402,7 +1402,7 @@ class VideoDetailController extends GetxController
     playerInit();
   }
 
-  FutureOr<void> _initPlayerIfNeeded({
+  Future<void>? _initPlayerIfNeeded({
     BiliDownloadEntryInfo? localEntry,
   }) {
     // 后台播放模式下，无需检查 widget mounted 状态
@@ -1417,6 +1417,7 @@ class VideoDetailController extends GetxController
                 : videoPlayerKey.currentState?.mounted == true)) {
       return playerInit(localEntry: localEntry);
     }
+    return null;
   }
 
   Future<void> playerInit({
