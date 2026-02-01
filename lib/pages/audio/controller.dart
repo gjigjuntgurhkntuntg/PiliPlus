@@ -1200,10 +1200,10 @@ class AudioController extends GetxController
     videoPlayerServiceHandler
       ?..onPlay = null
       ..onPause = null
-      ..onSeek = null
-      // 不要在这里重置 setListControlMode，因为播放器页有自己的状态管理
-      // 从听视频页返回时，播放器页的 didPopNext 会恢复正确的列表控制模式
-      ..onVideoDetailDispose(hashCode.toString());
+      ..onSeek = null;
+    // 不要在这里重置 setListControlMode，因为播放器页有自己的状态管理
+    // 从听视频页返回时，播放器页的 didPopNext 会恢复正确的列表控制模式
+    videoPlayerServiceHandler?.onVideoDetailDispose(hashCode.toString());
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions = null;
     _sponsorBlockSubscription?.cancel();
@@ -1212,6 +1212,11 @@ class AudioController extends GetxController
     player?.dispose();
     player = null;
     animController.dispose();
+    // 强制清理媒体通知卡片，确保退出时卡片被销毁
+    // 这是解决快速返回或网络加载失败时媒体卡片残留的关键
+    if (Platform.isAndroid) {
+      videoPlayerServiceHandler?.clear(force: true);
+    }
     super.onClose();
   }
 
