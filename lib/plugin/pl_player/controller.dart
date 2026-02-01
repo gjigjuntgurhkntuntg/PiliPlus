@@ -292,7 +292,11 @@ class PlPlayerController {
   late bool _shouldSetPip = false;
 
   bool get _isCurrVideoPage {
-    final currentRoute = Get.currentRoute;
+    final routing = Get.routing;
+    if (routing.route is! GetPageRoute) {
+      return false;
+    }
+    final currentRoute = routing.current;
     return currentRoute.startsWith('/video') ||
         currentRoute.startsWith('/liveRoom');
   }
@@ -305,6 +309,7 @@ class PlPlayerController {
 
   void enterPip({bool isAuto = false}) {
     if (videoController != null) {
+      controls = false;
       final state = videoController!.player.state;
       PageUtils.enterPip(
         isAuto: isAuto,
@@ -554,7 +559,7 @@ class PlPlayerController {
 
     if (Platform.isAndroid && autoPiP) {
       Utils.sdkInt.then((sdkInt) {
-        if (sdkInt < 31) {
+        if (sdkInt < 36) {
           Utils.channel.setMethodCallHandler((call) async {
             if (call.method == 'onUserLeaveHint') {
               if (playerStatus.playing && _isCurrVideoPage) {
