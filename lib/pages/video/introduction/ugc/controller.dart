@@ -539,17 +539,16 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         ..aid = aid
         ..cid.value = cid;
 
-      // 从听视频页返回时，在 onReset 后设置进度（onReset 会清除 playedTime 和 defaultST）
-      if (fromAudioPage &&
-          audioPosition != null &&
-          audioPosition > Duration.zero) {
-        videoDetailCtr.playedTime = audioPosition;
-        videoDetailCtr.defaultST = audioPosition;
-      }
-
       // 重要：在后台/锁屏场景下，必须等待 queryVideoUrl 完成才能继续
       // 否则播放器尚未初始化好，自动播放会失败
-      await videoDetailCtr.queryVideoUrl();
+      // 从听视频页返回时，需要传递 audioPosition 以同步进度
+      final Duration? progressToPass =
+          (fromAudioPage &&
+              audioPosition != null &&
+              audioPosition > Duration.zero)
+          ? audioPosition
+          : null;
+      await videoDetailCtr.queryVideoUrl(defaultST: progressToPass);
 
       if (this.bvid != bvid) {
         reload = true;
