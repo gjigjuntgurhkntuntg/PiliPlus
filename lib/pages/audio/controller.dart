@@ -370,11 +370,6 @@ class AudioController extends GetxController
     // 重置前台服务标记，但不要立即停止服务
     // 等到新媒体开始播放时再停止，避免切换时的保护窗口期
     _fgStartedForCurrent = false;
-    if (kDebugMode) {
-      debugPrint(
-        'AudioController: _onOpenMedia called, url=${url.substring(0, url.length > 50 ? 50 : url.length)}...',
-      );
-    }
     _initPlayerIfNeeded();
     player!.open(
       Media(
@@ -1051,6 +1046,19 @@ class AudioController extends GetxController
         subId ??
         (item.subId.isNotEmpty ? item.subId : [audioItem.parts.first.subId]);
     itemType = item.itemType;
+    // 使用列表中的进度信息设置起始播放位置
+    // 优先使用 playlist 中的进度（由 _saveCurrentProgress 更新）
+    // 如果为 0，尝试从 VideoDetailController 的 mediaList 中获取本地进度
+    int progress = audioItem.progress.toInt();
+    if (progress <= 0) {
+      progress = _getProgressFromMediaList(item.oid.toInt());
+    }
+    if (kDebugMode) {
+      debugPrint(
+        '🎵 playIndex: index=$index, oid=${item.oid}, progress=$progress seconds',
+      );
+    }
+    _start = progress > 0 ? Duration(seconds: progress) : null;
     _queryPlayUrl().then((res) {
       if (res) {
         // 保持与 VideoDetailController 的连接，不再设置为 null
@@ -1058,6 +1066,31 @@ class AudioController extends GetxController
         _updateCurrItem(audioItem);
       }
     });
+  }
+
+  /// 从 VideoDetailController 的 mediaList 中获取视频的本地进度（秒）
+  int _getProgressFromMediaList(int aid) {
+    if (_videoDetailController == null) return 0;
+    try {
+      final mediaList = _videoDetailController!.mediaList;
+      final item = mediaList.firstWhereOrNull((e) => e.aid == aid);
+      if (item != null &&
+          item.progressPercent != null &&
+          item.duration != null &&
+          item.progressPercent! > 0) {
+        // progressPercent 可能是 0-1 格式（服务器返回）或 0-100 格式（内部更新）
+        // 如果值 <= 1，认为是 0-1 格式；否则是 0-100 格式
+        final percent = item.progressPercent! <= 1
+            ? item.progressPercent!
+            : item.progressPercent! / 100;
+        return (percent * item.duration!).round();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('获取 mediaList 进度失败: $e');
+      }
+    }
+    return 0;
   }
 
   /// 保存当前视频的播放进度到 VideoDetailController
@@ -1080,6 +1113,11 @@ class AudioController extends GetxController
         debugPrint(
           '🎵 AudioController: 保存进度 bvid=$currentBvid, cid=$currentCid, position=${progressSeconds}s',
         );
+      }
+
+      // 同步更新 playlist 中当前项的进度，以便在列表中切换时使用最新进度
+      if (index != null && playlist != null && index! < playlist!.length) {
+        playlist![index!].progress = Int64(progressSeconds);
       }
 
       // 使用新的公开方法更新指定视频的进度
