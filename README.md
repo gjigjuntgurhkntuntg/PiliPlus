@@ -8,9 +8,9 @@
     <h1>PiliPlus</h1>
 <div align="center">
 
-![GitHub repo size](https://img.shields.io/github/repo-size/bggRGjQaUbCoE/PiliPlus)
-![GitHub Repo stars](https://img.shields.io/github/stars/bggRGjQaUbCoE/PiliPlus)
-![GitHub all releases](https://img.shields.io/github/downloads/bggRGjQaUbCoE/PiliPlus/total)
+![GitHub repo size](https://img.shields.io/github/repo-size/staoran/PiliPlus)
+![GitHub Repo stars](https://img.shields.io/github/stars/staoran/PiliPlus)
+![GitHub all releases](https://img.shields.io/github/downloads/staoran/PiliPlus/total)
 </div>
     <p>使用Flutter开发的BiliBili第三方客户端</p>
 
