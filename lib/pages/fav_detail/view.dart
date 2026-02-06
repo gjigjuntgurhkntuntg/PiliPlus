@@ -6,7 +6,6 @@ import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/fav_order_type.dart';
-import 'package:PiliPlus/models_new/fav/fav_detail/data.dart';
 import 'package:PiliPlus/models_new/fav/fav_detail/media.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
 import 'package:PiliPlus/pages/dynamics_repost/view.dart';
@@ -307,87 +306,69 @@ class _FavDetailPageState extends State<FavDetailPage> with GridMixin {
     ];
   }
 
-  List<Widget> _selectActions(ThemeData theme) => [
-    TextButton(
-      style: TextButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-      ),
-      onPressed: () => _favDetailController.handleSelect(checked: true),
-      child: const Text('全选'),
-    ),
-    TextButton(
-      style: TextButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-      ),
-      onPressed: () =>
-          RequestUtils.onCopyOrMove<FavDetailData, FavDetailItemModel>(
-            context: context,
-            isCopy: true,
-            ctr: _favDetailController,
-            mediaId: _favDetailController.mediaId,
-            mid: _favDetailController.account.mid,
-          ),
-      child: Text(
-        '复制',
-        style: TextStyle(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    ),
-    TextButton(
-      style: TextButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-      ),
-      onPressed: () =>
-          RequestUtils.onCopyOrMove<FavDetailData, FavDetailItemModel>(
-            context: context,
-            isCopy: false,
-            ctr: _favDetailController,
-            mediaId: _favDetailController.mediaId,
-            mid: _favDetailController.account.mid,
-          ),
-      child: Text(
-        '移动',
-        style: TextStyle(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    ),
-    if (Pref.showMoreDownloadButtons)
+  List<Widget> _selectActions(ThemeData theme) {
+    final btnStyle = TextButton.styleFrom(visualDensity: .compact);
+    final textStyle = TextStyle(color: theme.colorScheme.onSurfaceVariant);
+    return [
       TextButton(
-        style: TextButton.styleFrom(
-          visualDensity: VisualDensity.compact,
+        style: btnStyle,
+        onPressed: () => _favDetailController.handleSelect(checked: true),
+        child: const Text('全选'),
+      ),
+      TextButton(
+        style: btnStyle,
+        onPressed: () => RequestUtils.onCopyOrMove<FavDetailItemModel>(
+          context: context,
+          isCopy: true,
+          ctr: _favDetailController,
+          mediaId: _favDetailController.mediaId,
+          mid: _favDetailController.account.mid,
         ),
-        onPressed: () async {
-          final quality = await DownloadDialogUtils.showDownloadConfirmDialog(
-            context,
-            title: '确认缓存选中项？',
-            content: '将把选中的视频加入离线下载队列。',
-          );
+        child: Text('复制', style: textStyle),
+      ),
+      TextButton(
+        style: btnStyle,
+        onPressed: () => RequestUtils.onCopyOrMove<FavDetailItemModel>(
+          context: context,
+          isCopy: false,
+          ctr: _favDetailController,
+          mediaId: _favDetailController.mediaId,
+          mid: _favDetailController.account.mid,
+        ),
+        child: Text('移动', style: textStyle),
+      ),
+      if (Pref.showMoreDownloadButtons)
+        TextButton(
+          style: btnStyle,
+          onPressed: () async {
+            final quality = await DownloadDialogUtils.showDownloadConfirmDialog(
+              context,
+              title: '确认缓存选中项？',
+              content: '将把选中的视频加入离线下载队列。',
+            );
 
-          if (quality != null) {
-            await _favDetailController.batchDownloadSelected(quality: quality);
-          }
-        },
-        child: Text(
-          '缓存',
-          style: TextStyle(
-            color: theme.colorScheme.onSurfaceVariant,
+            if (quality != null) {
+              await _favDetailController.batchDownloadSelected(
+                quality: quality,
+              );
+            }
+          },
+          child: Text(
+            '缓存',
+            style: textStyle,
           ),
         ),
+      TextButton(
+        style: btnStyle,
+        onPressed: _favDetailController.onRemove,
+        child: Text(
+          '删除',
+          style: TextStyle(color: theme.colorScheme.error),
+        ),
       ),
-    TextButton(
-      style: TextButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-      ),
-      onPressed: _favDetailController.onRemove,
-      child: Text(
-        '删除',
-        style: TextStyle(color: theme.colorScheme.error),
-      ),
-    ),
-    const SizedBox(width: 10),
-  ];
+      const SizedBox(width: 10),
+    ];
+  }
 
   Widget _flexibleSpace(ThemeData theme) {
     final style = TextStyle(

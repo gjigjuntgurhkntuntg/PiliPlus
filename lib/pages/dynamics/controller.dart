@@ -11,7 +11,6 @@ import 'package:PiliPlus/pages/common/common_controller.dart';
 import 'package:PiliPlus/pages/dynamics_tab/controller.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -38,7 +37,7 @@ class DynamicsController extends GetxController
       LoadingState<FollowUpModel>.loading().obs;
   late int _upPage = 1;
   late bool _upEnd = false;
-  List<UpItem>? _cacheUpList;
+  Set<UpItem>? _cacheUpList;
   late final _showAllUp = Pref.dynamicsShowAllFollowedUp;
   late bool showLiveUp = Pref.expandDynLivePanel;
 
@@ -158,7 +157,7 @@ class DynamicsController extends GetxController
     final first = res.first;
     if (first case final Success<FollowUpModel> i) {
       final data = i.response;
-      final second = res.getOrNull(1);
+      final second = res.elementAtOrNull(1);
       if (second case final Success<FollowData> j) {
         final data1 = j.response;
         final list1 = data1.list;
@@ -169,8 +168,7 @@ class DynamicsController extends GetxController
         }
 
         final list = data.upList;
-        _cacheUpList = List<UpItem>.from(list);
-        list.addAll(list1..removeWhere(list.contains));
+        list.addAll(list1..removeWhere((_cacheUpList = list.toSet()).contains));
       }
       if (!_showAllUp) {
         if (data.hasMore == false || data.offset.isNullOrEmpty) {

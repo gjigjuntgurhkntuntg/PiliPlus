@@ -43,18 +43,28 @@ class _RankPageState extends State<RankPage>
     );
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tabHeight = MediaQuery.textScalerOf(context).scale(21) + 14;
+  }
+
+  late double _tabHeight;
+
   Widget _buildTab(ThemeData theme) {
     return SizedBox(
       width: 64,
       child: Obx(() {
         final tabIndex = _rankController.tabIndex.value;
         return ListView.builder(
+          controller: _rankController.tabScrollController,
           padding: .only(bottom: MediaQuery.paddingOf(context).bottom + 105),
           itemCount: RankType.values.length,
           itemBuilder: (context, index) {
             final item = RankType.values[index];
             final isCurr = index == tabIndex;
-            return IntrinsicHeight(
+            return SizedBox(
+              height: _tabHeight,
               child: Material(
                 color: isCurr
                     ? theme.colorScheme.onInverseSurface
@@ -64,7 +74,8 @@ class _RankPageState extends State<RankPage>
                       ? _rankController.animateToTop
                       : () => _rankController
                           ..tabIndex.value = index
-                          ..tabController.animateTo(index),
+                          ..tabController.animateTo(index)
+                          ..scrollToCurrentIndex(_tabHeight, index),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
