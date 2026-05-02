@@ -17,7 +17,6 @@ import 'package:PiliPlus/pages/download/detail/view.dart';
 import 'package:PiliPlus/pages/download/detail/widgets/item.dart';
 import 'package:PiliPlus/pages/download/search/view.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart' show IterableExt;
 import 'package:PiliPlus/utils/grid.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -125,11 +124,12 @@ class _DownloadPageState extends State<DownloadPage> {
             child: CustomScrollView(
               slivers: [
                 Obx(() {
-                  final entry =
-                      _downloadService.waitDownloadQueue.firstWhereOrNull(
-                        (e) => e.cid == _downloadService.curCid,
-                      ) ??
-                      _downloadService.waitDownloadQueue.firstOrNull;
+                  final activeEntries = _downloadService.activeDownloads;
+                  final entry = activeEntries.isNotEmpty
+                      ? activeEntries.first
+                      : _downloadService.waitDownloadQueue.isNotEmpty
+                      ? _downloadService.waitDownloadQueue.first
+                      : null;
                   if (entry != null) {
                     return SliverMainAxisGroup(
                       slivers: [
@@ -149,7 +149,7 @@ class _DownloadPageState extends State<DownloadPage> {
                               progress: _progress,
                               downloadService: _downloadService,
                               showTitle: true,
-                              isCurr: true,
+                              isCurr: _downloadService.isActive(entry),
                               controller: _controller,
                             ),
                           ),
