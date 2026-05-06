@@ -1666,21 +1666,7 @@ class PlPlayerController with BlockConfigMixin {
           if (orientation == null && mode == .none) {
             return;
           }
-          if (!horizontalScreen) {
-            await portraitUpMode();
-          } else {
-            switch (_orientation) {
-              case .portraitUp:
-                await portraitUpMode();
-              case .landscapeLeft:
-                await landscapeLeftMode();
-              case .portraitDown:
-                await portraitDownMode();
-              case .landscapeRight:
-                await landscapeRightMode();
-              case _:
-            }
-          }
+          await resetScreenRotation();
         } else {
           await exitDesktopFullScreen();
         }
@@ -1781,11 +1767,11 @@ class PlPlayerController with BlockConfigMixin {
   bool _isCloseAll = false;
   bool get isCloseAll => _isCloseAll;
 
-  void resetScreenRotation() {
+  Future<void>? resetScreenRotation() {
     if (horizontalScreen) {
-      fullMode();
+      return fullMode();
     } else {
-      portraitUpMode();
+      return portraitUpMode();
     }
   }
 
