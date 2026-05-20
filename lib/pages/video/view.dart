@@ -508,6 +508,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         videoDetailController.plPlayerController.setPlaybackSpeed(audioSpeed),
       );
 
+      if (audioController.isSwitchingAudio) {
+        if (kDebugMode) {
+          debugPrint('从听视频返回时音频仍在切换中，跳过视频身份和进度同步');
+        }
+        return;
+      }
+
       // 如果听视频切换了视频，需要同步到视频页
       final audioOid = audioController.oid;
       final audioCid = audioController.subId.firstOrNull?.toInt();

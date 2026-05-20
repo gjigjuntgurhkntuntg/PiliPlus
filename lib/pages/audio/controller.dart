@@ -113,8 +113,11 @@ class AudioController extends GetxController
   BiliDownloadEntryInfo? currentLocalEntry;
   int _switchGeneration = 0;
   bool _pendingSwitchProtection = false;
+  bool _isSwitchingAudio = false;
   bool get _isAppInForeground =>
       SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
+  bool get isSwitchingAudio => _isSwitchingAudio;
 
   bool get _hasVideoDetailController => _videoDetailController != null;
 
@@ -186,11 +189,13 @@ class AudioController extends GetxController
         // 即使传入了audioUrl，也先尝试使用本地离线资源
         final triedLocal = await _tryPlayLocalIfAvailable();
         if (!triedLocal) {
-          // 没有离线资源才使用传入的在线地址
-          _onOpenMedia(
-            audioUrl,
-            ua: BrowserUa.pc,
-            referer: HttpString.baseUrl,
+          // 离线资源不可用（不存在或打开失败）才使用传入的在线地址
+          unawaited(
+            _onOpenMedia(
+              audioUrl,
+              ua: BrowserUa.pc,
+              referer: HttpString.baseUrl,
+            ),
           );
         }
         // 有 audioUrl 时也需要查询空降助手
@@ -316,6 +321,48 @@ class AudioController extends GetxController
 
   bool _isStaleSwitch(int generation) =>
       isClosed || generation != _switchGeneration;
+
+  void _markAudioSwitching() {
+    if (_isSwitchingAudio) return;
+    _isSwitchingAudio = true;
+    DebugLogService.log(
+      'audio.switch',
+      'mark audio switching',
+      extra: {
+        'oid': oid.toString(),
+        'subId': subId.firstOrNull?.toString(),
+      },
+    );
+  }
+
+  void _clearAudioSwitching({required String reason}) {
+    if (!_isSwitchingAudio) return;
+    _isSwitchingAudio = false;
+    DebugLogService.log(
+      'audio.switch',
+      'clear audio switching',
+      extra: {
+        'reason': reason,
+        'oid': oid.toString(),
+        'subId': subId.firstOrNull?.toString(),
+      },
+    );
+  }
+
+  void _resetPlaybackProgressForSwitch() {
+    position.value = Duration.zero;
+    duration.value = Duration.zero;
+    _start = null;
+    videoPlayerServiceHandler?.onPositionChange(Duration.zero);
+    DebugLogService.log(
+      'audio.switch',
+      'reset playback progress for switch',
+      extra: {
+        'oid': oid.toString(),
+        'subId': subId.firstOrNull?.toString(),
+      },
+    );
+  }
 
   Future<void> _ensureSwitchProtection({
     required String reason,
@@ -477,8 +524,7 @@ class AudioController extends GetxController
           'subId': subId.firstOrNull?.toString(),
         },
       );
-      _onPlay(response);
-      return true;
+      return _onPlay(response);
     } else {
       DebugLogService.log(
         'audio.playurl',
@@ -548,43 +594,46 @@ class AudioController extends GetxController
       },
     );
     duration.value = Duration(milliseconds: local.totalTimeMilli);
-    _onOpenMedia(audioPath, ua: '', referer: null);
-    return true;
+    return _onOpenMedia(audioPath, ua: '', referer: null);
   }
 
-  void _onPlay(PlayURLResp data) {
+  Future<bool> _onPlay(PlayURLResp data) {
     final PlayInfo? playInfo = data.playerInfo.values.firstOrNull;
     if (playInfo != null) {
       if (playInfo.hasPlayDash()) {
         final playDash = playInfo.playDash;
         final audios = playDash.audio;
         if (audios.isEmpty) {
-          return;
+          return Future.value(false);
         }
         position.value = Duration.zero;
         final audio = audios.findClosestTarget(
           (e) => e.id <= cacheAudioQa,
           (a, b) => a.id > b.id ? a : b,
         );
-        _onOpenMedia(VideoUtils.getCdnUrl(audio.playUrls, isAudio: true));
+        return _onOpenMedia(
+          VideoUtils.getCdnUrl(audio.playUrls, isAudio: true),
+        );
       } else if (playInfo.hasPlayUrl()) {
         final playUrl = playInfo.playUrl;
         final durls = playUrl.durl;
         if (durls.isEmpty) {
-          return;
+          return Future.value(false);
         }
         final durl = durls.first;
         position.value = Duration.zero;
-        _onOpenMedia(VideoUtils.getCdnUrl(durl.playUrls, isAudio: true));
+        return _onOpenMedia(VideoUtils.getCdnUrl(durl.playUrls, isAudio: true));
       }
     }
+    return Future.value(false);
   }
 
-  Future<void> _onOpenMedia(
+  Future<bool> _onOpenMedia(
     String url, {
     String ua = Constants.userAgentApp,
     String? referer,
   }) async {
+    final openGeneration = _switchGeneration;
     DebugLogService.log(
       'audio.media',
       'open media',
@@ -596,28 +645,78 @@ class AudioController extends GetxController
         'isLocalPlayback': _isLocalPlayback,
       },
     );
-    position.value = Duration.zero;
-    // 切换媒资时重置本地播放标记
-    if (!_isLocalPlayback) {
-      // 非本地播放路径，确保标记清空
-      _isLocalPlayback = false;
+    if (openGeneration == _switchGeneration) {
+      position.value = Duration.zero;
     }
-    await _initPlayerIfNeeded();
-    player!.setMediaHeader(
-      userAgent: ua,
-      // mpv cannot clear referer option
-      headers: {'Referer': ?referer},
-    );
-    player!.open(
-      Media(
-        url,
-        start: _start,
-      ),
-    );
-    await player!.play();
-    player!.setRate(speed);
-    _start = null;
-    initSkip();
+    try {
+      await _initPlayerIfNeeded();
+      if (player == null) {
+        _clearAudioSwitching(reason: 'player_unavailable');
+        return false;
+      }
+      player!.setMediaHeader(
+        userAgent: ua,
+        // mpv cannot clear referer option
+        headers: {'Referer': ?referer},
+      );
+      await player!.open(
+        Media(
+          url,
+          start: _start,
+        ),
+        play: false,
+      );
+      await player!.play();
+      player!.setRate(speed);
+      if (openGeneration == _switchGeneration) {
+        final stateDuration = player!.state.duration;
+        if (stateDuration > Duration.zero) {
+          duration.value = stateDuration;
+        }
+        final statePosition = player!.state.position;
+        if (statePosition > Duration.zero) {
+          position.value = statePosition;
+        }
+        _start = null;
+        _clearAudioSwitching(reason: 'media_opened');
+        initSkip();
+        return true;
+      } else {
+        DebugLogService.log(
+          'audio.media',
+          'ignore stale media open completion',
+          extra: {
+            'openGeneration': openGeneration,
+            'currentGeneration': _switchGeneration,
+            'oid': oid.toString(),
+            'subId': subId.firstOrNull?.toString(),
+          },
+        );
+        return false;
+      }
+    } catch (e) {
+      DebugLogService.log(
+        'audio.media',
+        'open media failed',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+          'error': e.toString(),
+        },
+      );
+      if (openGeneration == _switchGeneration) {
+        _clearAudioSwitching(reason: 'media_open_failed');
+      }
+      if (openGeneration == _switchGeneration && _pendingSwitchProtection) {
+        unawaited(
+          _finishSwitchProtection(
+            success: false,
+            reason: 'media_open_failed',
+          ),
+        );
+      }
+      return false;
+    }
   }
 
   Future<void> _initPlayerIfNeeded() async {
@@ -640,6 +739,7 @@ class AudioController extends GetxController
     _subscriptions = [
       stream.position.listen((position) {
         if (isDragging) return;
+        if (_isSwitchingAudio) return;
         if (position.inSeconds != this.position.value.inSeconds) {
           this.position.value = position;
           if (_shouldSyncVideoDetailMetadata) {
@@ -648,7 +748,10 @@ class AudioController extends GetxController
           videoPlayerServiceHandler?.onPositionChange(position);
         }
       }),
-      stream.duration.listen(duration.call),
+      stream.duration.listen((duration) {
+        if (_isSwitchingAudio) return;
+        this.duration.value = duration;
+      }),
       stream.playing.listen((playing) {
         final PlayerStatus playerStatus;
         if (playing) {
@@ -688,6 +791,17 @@ class AudioController extends GetxController
   }
 
   void _handlePlaybackCompleted() {
+    if (_isSwitchingAudio) {
+      DebugLogService.log(
+        'audio.completed',
+        'ignore completed while switching',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+        },
+      );
+      return;
+    }
     DebugLogService.log(
       'audio.completed',
       'handle playback completed',
@@ -1131,9 +1245,11 @@ class AudioController extends GetxController
         'nextPartIndex': nextPartIndex,
       },
     );
+    _markAudioSwitching();
     _isLocalPlayback = false;
     oid = nextPart.oid;
     subId = [nextPart.subId];
+    _resetPlaybackProgressForSwitch();
     final res = await _queryPlayUrlForSwitch(generation);
     if (res) {
       DebugLogService.log(
@@ -1147,6 +1263,9 @@ class AudioController extends GetxController
       );
       _updateCurrentItemFromState();
     } else {
+      if (!_isStaleSwitch(generation)) {
+        _clearAudioSwitching(reason: 'next_part_failed');
+      }
       DebugLogService.log(
         'audio.switch',
         'switch to next part failed',
@@ -1171,6 +1290,7 @@ class AudioController extends GetxController
       _saveCurrentProgress();
     }
     final generation = _beginSwitch();
+    _markAudioSwitching();
     this.index = index;
     _isLocalPlayback = false;
     final audioItem = playlist![index];
@@ -1180,6 +1300,7 @@ class AudioController extends GetxController
         subId ??
         (item.subId.isNotEmpty ? item.subId : [audioItem.parts.first.subId]);
     itemType = item.itemType;
+    _resetPlaybackProgressForSwitch();
     // 使用列表中的进度信息设置起始播放位置
     // 优先使用 playlist 中的进度（由 _saveCurrentProgress 更新）
     // 如果为 0，尝试从 VideoDetailController 的 mediaList 中获取本地进度
@@ -1203,6 +1324,7 @@ class AudioController extends GetxController
         'progress': progress,
       },
     );
+    // 先由 _resetPlaybackProgressForSwitch 清理旧 seek，再按新列表项进度设置目标 seek。
     _start = progress > 0 ? Duration(seconds: progress) : null;
     final res = await _queryPlayUrlForSwitch(generation);
     if (res) {
@@ -1218,6 +1340,9 @@ class AudioController extends GetxController
       );
       _updateCurrentItemFromState();
     } else {
+      if (!_isStaleSwitch(generation)) {
+        _clearAudioSwitching(reason: 'playlist_index_failed');
+      }
       DebugLogService.log(
         'audio.switch',
         'switch to playlist index failed',
@@ -1253,6 +1378,17 @@ class AudioController extends GetxController
   /// 使用听视频当前播放的视频信息，而不是 VideoDetailController 的视频信息
   void _saveCurrentProgress() {
     if (_videoDetailController == null) return;
+    if (_isSwitchingAudio) {
+      DebugLogService.log(
+        'audio.progress',
+        'skip save progress while switching',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+        },
+      );
+      return;
+    }
 
     try {
       final currentPosition = position.value;
@@ -1418,7 +1554,18 @@ class AudioController extends GetxController
   @override
   void onClose() {
     // 退出听视频时保存最后的进度
-    _saveCurrentProgress();
+    if (!_isSwitchingAudio) {
+      _saveCurrentProgress();
+    } else {
+      DebugLogService.log(
+        'audio.progress',
+        'skip save progress on close while switching',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+        },
+      );
+    }
 
     if (_pendingSwitchProtection) {
       unawaited(
