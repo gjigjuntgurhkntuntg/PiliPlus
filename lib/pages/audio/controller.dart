@@ -1247,6 +1247,8 @@ class AudioController extends GetxController
     );
     _markAudioSwitching();
     _isLocalPlayback = false;
+    final prevOid = oid;
+    final prevSubId = subId;
     oid = nextPart.oid;
     subId = [nextPart.subId];
     _resetPlaybackProgressForSwitch();
@@ -1264,7 +1266,10 @@ class AudioController extends GetxController
       _updateCurrentItemFromState();
     } else {
       if (!_isStaleSwitch(generation)) {
+        oid = prevOid;
+        subId = prevSubId;
         _clearAudioSwitching(reason: 'next_part_failed');
+        _updateCurrentItemFromState();
       }
       DebugLogService.log(
         'audio.switch',
@@ -1291,6 +1296,10 @@ class AudioController extends GetxController
     }
     final generation = _beginSwitch();
     _markAudioSwitching();
+    final prevIndex = this.index;
+    final prevOid = oid;
+    final prevSubId = this.subId;
+    final prevItemType = itemType;
     this.index = index;
     _isLocalPlayback = false;
     final audioItem = playlist![index];
@@ -1341,7 +1350,12 @@ class AudioController extends GetxController
       _updateCurrentItemFromState();
     } else {
       if (!_isStaleSwitch(generation)) {
+        this.index = prevIndex;
+        oid = prevOid;
+        this.subId = prevSubId;
+        itemType = prevItemType;
         _clearAudioSwitching(reason: 'playlist_index_failed');
+        _updateCurrentItemFromState();
       }
       DebugLogService.log(
         'audio.switch',
