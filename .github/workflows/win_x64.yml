@@ -45,6 +45,9 @@ jobs:
         shell: pwsh
         run: lib/scripts/build.ps1 -Tag "${{ inputs.tag }}"
 
+      - name: Pre-build Windows native (ensure runner/Release exists)
+        run: flutter build windows --release --dart-define-from-file=pili_release.json
+
       - name: Build Windows
         run: |
           fastforge package --platform windows --targets exe --flutter-build-args="dart-define-from-file=pili_release.json"
