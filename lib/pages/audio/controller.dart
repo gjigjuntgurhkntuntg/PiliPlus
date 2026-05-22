@@ -58,15 +58,6 @@ import 'package:get/get.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path/path.dart' as path;
 
-class _PrefetchedUrl {
-  _PrefetchedUrl(this.resp) : fetchedAt = DateTime.now();
-
-  final PlayURLResp resp;
-  final DateTime fetchedAt;
-
-  bool isExpired(Duration ttl) => DateTime.now().difference(fetchedAt) > ttl;
-}
-
 class AudioController extends GetxController
     with
         GetTickerProviderStateMixin,
@@ -101,13 +92,6 @@ class AudioController extends GetxController
 
   int? index;
   List<DetailItem>? playlist;
-
-  static const int _prefetchWindowSize = 5;
-  static const Duration _prefetchTtl = Duration(minutes: 30);
-
-  final Map<int, _PrefetchedUrl> _urlCache = {};
-  final Set<int> _prefetchFailedIndexes = <int>{};
-  final Set<int> _prefetchInflight = <int>{};
 
   late double speed = 1.0;
 
@@ -461,24 +445,17 @@ class AudioController extends GetxController
           playlist = response.list;
           // 更新媒体通知列表控制模式
           _updateListControlMode();
-          // TB1：入队即预取后续 N 首 URL（D2b 批量预取）
-          _maintainPrefetchWindow(trigger: 'init');
         }
       } else if (isLoadPrev) {
         _prev = response.reachStart ? null : response.paginationReply.prev;
         if (response.list.isNotEmpty) {
           index += response.list.length;
           playlist?.insertAll(0, response.list);
-          // TB3：翻页导致 index 偏移，缓存失效后重新预取
-          _invalidatePrefetchCache(reason: 'playlist_load_prev');
-          _maintainPrefetchWindow(trigger: 'pagination_prev');
         }
       } else if (isLoadNext) {
         _next = response.reachEnd ? null : response.paginationReply.next;
         if (response.list.isNotEmpty) {
           playlist?.addAll(response.list);
-          // TB3：翻页扩展队列，原有缓存仍有效，但应补齐新窗口
-          _maintainPrefetchWindow(trigger: 'pagination_next');
         }
       }
     } else {
@@ -533,13 +510,6 @@ class AudioController extends GetxController
     // 查询空降助手
     _querySponsorBlock();
 
-    // 优先使用预取缓存（D2b 批量预取命中分支），命中时跳过 dio gRPC，
-    // 用于在锁屏后台切歌时绕开 dio 新建出站连接被 OEM 抑制的问题。
-    final cached = _tryUsePrefetchedUrl();
-    if (cached != null) {
-      return _onPlay(cached);
-    }
-
     final res = await AudioGrpc.audioPlayUrl(
       itemType: itemType,
       oid: oid,
@@ -576,141 +546,6 @@ class AudioController extends GetxController
       return false;
     }
     return result;
-  }
-
-  PlayURLResp? _tryUsePrefetchedUrl() {
-    final i = index;
-    if (i == null) return null;
-    final entry = _urlCache.remove(i);
-    if (entry == null) return null;
-    if (entry.isExpired(_prefetchTtl)) {
-      DebugLogService.log(
-        'audio.prefetch',
-        'cache expired',
-        extra: {
-          'index': i,
-          'oid': oid.toString(),
-        },
-      );
-      return null;
-    }
-    DebugLogService.log(
-      'audio.prefetch',
-      'cache hit',
-      extra: {
-        'index': i,
-        'oid': oid.toString(),
-      },
-    );
-    return entry.resp;
-  }
-
-  void _maintainPrefetchWindow({required String trigger}) {
-    final currentIndex = index;
-    final currentPlaylist = playlist;
-    if (currentIndex == null || currentPlaylist == null) return;
-
-    final end = (currentIndex + _prefetchWindowSize).clamp(
-      0,
-      currentPlaylist.length - 1,
-    );
-    for (int i = currentIndex + 1; i <= end; i++) {
-      if (i < 0 || i >= currentPlaylist.length) continue;
-      if (_urlCache.containsKey(i)) continue;
-      if (_prefetchInflight.contains(i)) continue;
-      if (_prefetchFailedIndexes.contains(i)) continue;
-      unawaited(_prefetchSingle(i, trigger: trigger));
-    }
-  }
-
-  Future<void> _prefetchSingle(int targetIndex, {required String trigger}) async {
-    final currentPlaylist = playlist;
-    if (currentPlaylist == null ||
-        targetIndex < 0 ||
-        targetIndex >= currentPlaylist.length) {
-      return;
-    }
-    if (_urlCache.containsKey(targetIndex)) return;
-    if (_prefetchInflight.contains(targetIndex)) return;
-    if (_prefetchFailedIndexes.contains(targetIndex)) return;
-
-    _prefetchInflight.add(targetIndex);
-    final detail = currentPlaylist[targetIndex];
-    final item = detail.item;
-    final targetOid = item.oid;
-    final targetSubId = item.subId.isNotEmpty
-        ? List<Int64>.from(item.subId)
-        : <Int64>[detail.parts.first.subId];
-    final targetItemType = item.itemType;
-
-    DebugLogService.log(
-      'audio.prefetch',
-      'start',
-      extra: {
-        'index': targetIndex,
-        'oid': targetOid.toString(),
-        'trigger': trigger,
-      },
-    );
-
-    try {
-      final res = await AudioGrpc.audioPlayUrl(
-        itemType: targetItemType,
-        oid: targetOid,
-        subId: targetSubId,
-      );
-
-      if (isClosed) return;
-      final latestPlaylist = playlist;
-      if (latestPlaylist == null ||
-          targetIndex >= latestPlaylist.length ||
-          latestPlaylist[targetIndex].item.oid != targetOid) {
-        DebugLogService.log(
-          'audio.prefetch',
-          'stale, discard result',
-          extra: {
-            'index': targetIndex,
-            'oid': targetOid.toString(),
-          },
-        );
-        return;
-      }
-
-      if (res case Success(:final response)) {
-        _urlCache[targetIndex] = _PrefetchedUrl(response);
-        DebugLogService.log(
-          'audio.prefetch',
-          'success',
-          extra: {
-            'index': targetIndex,
-            'oid': targetOid.toString(),
-          },
-        );
-      } else {
-        _prefetchFailedIndexes.add(targetIndex);
-        DebugLogService.log(
-          'audio.prefetch',
-          'failed',
-          extra: {
-            'index': targetIndex,
-            'oid': targetOid.toString(),
-            'error': res.toString(),
-          },
-        );
-      }
-    } finally {
-      _prefetchInflight.remove(targetIndex);
-    }
-  }
-
-  void _invalidatePrefetchCache({required String reason}) {
-    _urlCache.clear();
-    _prefetchFailedIndexes.clear();
-    DebugLogService.log(
-      'audio.prefetch',
-      'invalidate',
-      extra: {'reason': reason},
-    );
   }
 
   Future<bool> _tryPlayLocalIfAvailable() async {
@@ -1371,8 +1206,6 @@ class AudioController extends GetxController
     List<Int64>? subId,
     bool skipSaveProgress = false,
   }) {
-    // 用户手动跳曲：清掉该项的预取失败位，让后续 TB2 还能继续覆盖它
-    _prefetchFailedIndexes.remove(index);
     _enqueueSwitch(
       () async {
         await _ensureSwitchProtection(
@@ -1515,8 +1348,6 @@ class AudioController extends GetxController
         },
       );
       _updateCurrentItemFromState();
-      // TB2：切歌成功后补齐预取窗口（滑动）
-      _maintainPrefetchWindow(trigger: 'after_switch');
     } else {
       if (!_isStaleSwitch(generation)) {
         this.index = prevIndex;
@@ -1526,8 +1357,6 @@ class AudioController extends GetxController
         _clearAudioSwitching(reason: 'playlist_index_failed');
         _updateCurrentItemFromState();
       }
-      // 标记该项预取失败位，避免后续 TB2 反复补同一首
-      _prefetchFailedIndexes.add(index);
       DebugLogService.log(
         'audio.switch',
         'switch to playlist index failed',
@@ -1787,10 +1616,6 @@ class AudioController extends GetxController
     player?.dispose();
     player = null;
     animController.dispose();
-    // 清理预取缓存（D2b）
-    _urlCache.clear();
-    _prefetchFailedIndexes.clear();
-    _prefetchInflight.clear();
     // 方案对比说明：
     // - 旧方案：这里根据 shouldPreserveVideoNotification 条件 clear。
     // - 新方案：统一通过 onVideoDetailDispose 由 handler 判定“是否已无 owner”。

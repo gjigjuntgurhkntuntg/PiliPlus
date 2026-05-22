@@ -148,18 +148,18 @@ class Request {
     final http11Adapter = IOHttpClientAdapter(
       createHttpClient: enableSystemProxy
           ? () => HttpClient()
-              ..idleTimeout = const Duration(minutes: 5)
+              ..idleTimeout = const Duration(seconds: 15)
               ..autoUncompress = false
               ..findProxy = ((_) => 'PROXY $systemProxyHost:$systemProxyPort')
               ..badCertificateCallback = (cert, host, port) => true
           : () => HttpClient()
-              ..idleTimeout = const Duration(minutes: 5)
+              ..idleTimeout = const Duration(seconds: 15)
               ..autoUncompress = false, // Http2Adapter没有自动解压, 统一行为
     );
 
     final connectionManager = _enableHttp2
         ? ConnectionManager(
-            idleTimeout: const Duration(minutes: 5),
+            idleTimeout: const Duration(seconds: 15),
             onClientCreate: enableSystemProxy
                 ? (_, config) => config
                     ..proxy = Uri(
