@@ -13,7 +13,7 @@ class PlaybackForegroundService {
   static DateTime? _lastUpdate;
   static Timer? _autoStopTimer;
   static const _throttle = Duration(milliseconds: 500);
-  static const _maxProtectDuration = Duration(seconds: 20);
+  static const _maxProtectDuration = Duration(seconds: 60);
 
   static bool get isSupported => Platform.isAndroid;
 

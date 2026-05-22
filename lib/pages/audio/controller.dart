@@ -64,7 +64,8 @@ class AudioController extends GetxController
         TripleMixin,
         FavMixin,
         BlockConfigMixin,
-        BlockMixin {
+        BlockMixin,
+        WidgetsBindingObserver {
   late final Map args;
   late Int64 id;
   late Int64 oid;
@@ -113,6 +114,7 @@ class AudioController extends GetxController
   BiliDownloadEntryInfo? currentLocalEntry;
   int _switchGeneration = 0;
   bool _pendingSwitchProtection = false;
+  bool _isInBackground = false;
   bool _isSwitchingAudio = false;
   bool get _isAppInForeground =>
       SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed;
@@ -157,6 +159,7 @@ class AudioController extends GetxController
   @override
   void onInit() {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
     args = Get.arguments;
     oid = Int64(args['oid']);
     final id = args['id'];
@@ -368,7 +371,7 @@ class AudioController extends GetxController
     required String reason,
     String? text,
   }) async {
-    if (_isAppInForeground) {
+    if (!_isInBackground) {
       return;
     }
     _pendingSwitchProtection = true;
@@ -747,6 +750,14 @@ class AudioController extends GetxController
           }
           videoPlayerServiceHandler?.onPositionChange(position);
         }
+        if (_pendingSwitchProtection && position > Duration.zero) {
+          unawaited(
+            _finishSwitchProtection(
+              success: true,
+              reason: 'first_audio_data',
+            ),
+          );
+        }
       }),
       stream.duration.listen((duration) {
         if (_isSwitchingAudio) return;
@@ -757,14 +768,6 @@ class AudioController extends GetxController
         if (playing) {
           animController.forward();
           playerStatus = PlayerStatus.playing;
-          if (_pendingSwitchProtection) {
-            unawaited(
-              _finishSwitchProtection(
-                success: true,
-                reason: 'playback_started',
-              ),
-            );
-          }
         } else {
           animController.reverse();
           playerStatus = PlayerStatus.paused;
@@ -1566,6 +1569,15 @@ class AudioController extends GetxController
   bool get preInitPlayer => true;
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _isInBackground = true;
+    } else if (state == AppLifecycleState.resumed) {
+      _isInBackground = false;
+    }
+  }
+
+  @override
   void onClose() {
     // 退出听视频时保存最后的进度
     if (!_isSwitchingAudio) {
@@ -1618,8 +1630,9 @@ class AudioController extends GetxController
     animController.dispose();
     // 方案对比说明：
     // - 旧方案：这里根据 shouldPreserveVideoNotification 条件 clear。
-    // - 新方案：统一通过 onVideoDetailDispose 由 handler 判定“是否已无 owner”。
-    // 这样不用在页面层复制“是否该清理”的策略，降低多页面维护成本。
+    // - 新方案：统一通过 onVideoDetailDispose 由 handler 判定”是否已无 owner”。
+    // 这样不用在页面层复制”是否该清理”的策略，降低多页面维护成本。
+    WidgetsBinding.instance.removeObserver(this);
     super.onClose();
   }
 
