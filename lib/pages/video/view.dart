@@ -520,28 +520,44 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       final audioCid = audioController.subId.firstOrNull?.toInt();
       final currentBvid = IdUtils.av2bv(audioOid.toInt());
       final audioPosition = audioController.position.value;
+      final currentCid = videoDetailController.cid.value;
+      final hasSwitchedBvid = currentBvid != videoDetailController.bvid;
+      final hasSwitchedPart =
+          videoDetailController.isUgc &&
+          audioCid != null &&
+          audioCid != currentCid;
+      final shouldSwitchEpisode = hasSwitchedBvid || hasSwitchedPart;
       _pendingAudioSyncPosition = audioPosition > Duration.zero
           ? audioPosition
           : null;
 
-      if (currentBvid != videoDetailController.bvid) {
+      if (shouldSwitchEpisode) {
         if (kDebugMode) {
-          debugPrint(
-            '🔄 从听视频返回，检测到视频切换: $currentBvid (当前: ${videoDetailController.bvid})',
-          );
+          if (hasSwitchedBvid) {
+            debugPrint(
+              '🔄 从听视频返回，检测到视频切换: $currentBvid (当前: ${videoDetailController.bvid})',
+            );
+          } else {
+            debugPrint(
+              '🔄 从听视频返回，检测到分P切换: cid=$audioCid (当前: $currentCid)',
+            );
+          }
         }
 
         // 触发视频切换
         if (videoDetailController.isUgc) {
-          dynamic targetItem;
+          ugc.BaseEpisodeItem? targetItem;
+          final audioAid = audioOid.toInt();
+          bool matchesAudioState(ugc.BaseEpisodeItem item) =>
+              item.cid == audioCid ||
+              (hasSwitchedBvid &&
+                  (item.aid == audioAid || item.bvid == currentBvid));
 
           final videoDetail = ugcIntroController.videoDetail.value;
           final currentPages = videoDetail.pages;
           if (currentPages != null && currentPages.isNotEmpty) {
             for (final item in currentPages) {
-              if (item.aid == audioOid.toInt() ||
-                  item.cid == audioCid ||
-                  item.bvid == currentBvid) {
+              if (matchesAudioState(item)) {
                 targetItem = item;
                 break;
               }
@@ -554,9 +570,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               final episodes = section.episodes;
               if (episodes == null) continue;
               for (final item in episodes) {
-                if (item.aid == audioOid.toInt() ||
-                    item.cid == audioCid ||
-                    item.bvid == currentBvid) {
+                if (matchesAudioState(item)) {
                   targetItem = item;
                   break;
                 }
@@ -569,9 +583,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
           if (targetItem == null) {
             for (final item in videoDetailController.mediaList) {
-              if (item.aid == audioOid.toInt() ||
-                  item.cid == audioCid ||
-                  item.bvid == currentBvid) {
+              if (matchesAudioState(item)) {
                 targetItem = item;
                 break;
               }
