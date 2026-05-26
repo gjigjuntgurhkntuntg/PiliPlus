@@ -2,8 +2,6 @@
     <img width="200" height="200" src="assets/images/logo/logo.png">
 </div>
 
-
-
 <div align="center">
     <h1>PiliPlus</h1>
 <div align="center">
@@ -11,6 +9,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/bggRGjQaUbCoE/PiliPlus)
 ![GitHub Repo stars](https://img.shields.io/github/stars/bggRGjQaUbCoE/PiliPlus)
 ![GitHub all releases](https://img.shields.io/github/downloads/bggRGjQaUbCoE/PiliPlus/total)
+
 </div>
     <p>使用Flutter开发的BiliBili第三方客户端</p>
 
@@ -22,11 +21,13 @@
 <br/>
 </div>
 
-
 <br/>
 
 **感谢上游的无私奉献。本项目在上游的基础上根据个人使用习惯做了更多的激进修改，具体改动如下：**
 
+- [x] 离线缓存增加并发下载功能，最多同时下载三个视频
+- [x] 离线缓存增加仅WiFi下载约束配置项
+- [x] 听视频切换视频后视频页也同步切换
 - [x] 听视频切换视频时的进度加载问题
 - [x] 缓存失败时增加重试策略
 - [x] 稍后再看列表中标识已缓存状态，删除稍后再看时支持同步删除缓存
@@ -50,7 +51,6 @@
 - [x] 首页动态页视频卡片菜单增加离线下载
 - [x] 稍后再看、收藏夹增加批量离线下载
 - [x] 修改包名和更新检测位置
-
 
 ## 适配平台
 
@@ -253,7 +253,6 @@
 本仓库做了更激进的修改，感谢原作者的开源精神。
 
 感谢使用
-
 
 <br/>
 
