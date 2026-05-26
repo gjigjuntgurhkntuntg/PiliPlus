@@ -213,6 +213,35 @@ class DownloadService extends GetxService {
     _refreshDownloadState();
   }
 
+  bool get _isDownloadTaskLimitReached =>
+      _activeTasks.length >= _downloadTaskLimit;
+
+  bool _isFailedStatus(DownloadStatus status) => switch (status) {
+    DownloadStatus.failDownload ||
+    DownloadStatus.failDownloadAudio ||
+    DownloadStatus.failDanmaku ||
+    DownloadStatus.failPlayUrl => true,
+    _ => false,
+  };
+
+  bool _shouldQueueBeforeStart(BiliDownloadEntryInfo entry) =>
+      entry.status == DownloadStatus.pause || _isFailedStatus(entry.status);
+
+  void _ensureInWaitQueue(BiliDownloadEntryInfo entry) {
+    if (!waitDownloadQueue.contains(entry)) {
+      waitDownloadQueue.add(entry);
+    }
+  }
+
+  Future<void> _markEntryWaitingLocked(BiliDownloadEntryInfo entry) async {
+    _ensureInWaitQueue(entry);
+    if (entry.status != DownloadStatus.wait) {
+      entry.status = DownloadStatus.wait;
+      await _updateBiliDownloadEntryJson(entry);
+    }
+    _refreshDownloadState();
+  }
+
   Future<bool> _startEntryLocked(
     BiliDownloadEntryInfo entry, {
     required bool isManual,
@@ -262,23 +291,75 @@ class DownloadService extends GetxService {
   Future<void> _pauseTaskLocked(
     _ActiveDownloadTask task, {
     required bool isDelete,
+    DownloadStatus status = DownloadStatus.pause,
   }) async {
+    if (!isDelete) {
+      task.interruptedStatus = status;
+    }
     _activeTasks.remove(task.entry.cid);
     await task.cancel(isDelete: isDelete);
     if (!isDelete) {
-      task.entry.status = DownloadStatus.pause;
+      task.entry.status = status;
       await _updateBiliDownloadEntryJson(task.entry);
     }
     _refreshDownloadState();
   }
 
-  _ActiveDownloadTask? _findAutomaticActiveTask() {
+  Future<void> _startDownloadByUserLocked(BiliDownloadEntryInfo entry) async {
+    _schedulerPaused = false;
+    if (_activeTasks.containsKey(entry.cid)) {
+      return;
+    }
+
+    if (_isDownloadTaskLimitReached) {
+      final task = _findYieldableActiveTask();
+      if (task == null) {
+        SmartDialog.showToast('当前缓存任务已满');
+        return;
+      }
+      await _pauseTaskLocked(
+        task,
+        isDelete: false,
+        status: DownloadStatus.wait,
+      );
+    }
+
+    _ensureInWaitQueue(entry);
+    final started = await _startEntryLocked(entry, isManual: true);
+    if (started) {
+      await _scheduleDownloadsLocked();
+    }
+  }
+
+  Future<bool> _restoreInterruptedTaskStatus(
+    _ActiveDownloadTask task,
+  ) async {
+    final activeTask = _activeTasks[task.entry.cid];
+    if (identical(activeTask, task)) {
+      return false;
+    }
+    if (activeTask != null) {
+      return true;
+    }
+    final status = task.interruptedStatus;
+    if (status != null && task.entry.status != status) {
+      task.entry.status = status;
+      await _updateBiliDownloadEntryJson(task.entry);
+      _refreshDownloadState();
+    }
+    return true;
+  }
+
+  _ActiveDownloadTask? _findYieldableActiveTask() {
     for (final task in _activeTasks.values) {
       if (!task.isManual) {
         return task;
       }
     }
-    return null;
+    if (_activeTasks.isEmpty) {
+      return null;
+    }
+    return _activeTasks.values.first;
   }
 
   /// 停止前台服务
@@ -559,28 +640,70 @@ class DownloadService extends GetxService {
   }
 
   Future<void> startDownload(BiliDownloadEntryInfo entry) {
+    return _lock.synchronized(() => _startDownloadByUserLocked(entry));
+  }
+
+  Future<void> toggleDownload(BiliDownloadEntryInfo entry) {
     return _lock.synchronized(() async {
-      _schedulerPaused = false;
-      if (_activeTasks.containsKey(entry.cid)) {
+      final task = _activeTasks[entry.cid];
+      if (task != null) {
+        await _pauseTaskLocked(task, isDelete: false);
+        await _scheduleDownloadsLocked();
         return;
       }
 
-      if (_activeTasks.length >= _downloadTaskLimit) {
-        final task = _findAutomaticActiveTask();
-        if (task == null) {
-          SmartDialog.showToast('当前缓存任务已满');
-          return;
-        }
-        await _pauseTaskLocked(task, isDelete: false);
+      if (_shouldQueueBeforeStart(entry) && _isDownloadTaskLimitReached) {
+        await _markEntryWaitingLocked(entry);
+        return;
       }
 
-      if (!waitDownloadQueue.contains(entry)) {
-        waitDownloadQueue.add(entry);
+      await _startDownloadByUserLocked(entry);
+    });
+  }
+
+  Future<void> startAllDownloads() {
+    return _lock.synchronized(() async {
+      _schedulerPaused = false;
+      var hasWaitingEntry = false;
+      for (final entry in waitDownloadQueue) {
+        if (_activeTasks.containsKey(entry.cid) || entry.isCompleted) {
+          continue;
+        }
+        if (entry.status == DownloadStatus.wait) {
+          hasWaitingEntry = true;
+          continue;
+        }
+        if (_shouldQueueBeforeStart(entry)) {
+          entry.status = DownloadStatus.wait;
+          await _updateBiliDownloadEntryJson(entry);
+          hasWaitingEntry = true;
+        }
       }
-      final started = await _startEntryLocked(entry, isManual: true);
-      if (started) {
+      if (hasWaitingEntry) {
         await _scheduleDownloadsLocked();
+      } else {
+        _refreshDownloadState();
       }
+    });
+  }
+
+  Future<void> pauseAllDownloads() {
+    return _lock.synchronized(() async {
+      _schedulerPaused = true;
+      final tasks = _activeTasks.values.toList();
+      for (final task in tasks) {
+        await _pauseTaskLocked(task, isDelete: false);
+      }
+      for (final entry in waitDownloadQueue) {
+        if (entry.isCompleted ||
+            _activeTasks.containsKey(entry.cid) ||
+            entry.status != DownloadStatus.wait) {
+          continue;
+        }
+        entry.status = DownloadStatus.pause;
+        await _updateBiliDownloadEntryJson(entry);
+      }
+      _refreshDownloadState();
     });
   }
 
@@ -655,7 +778,13 @@ class DownloadService extends GetxService {
     final entry = task.entry;
     try {
       if (!await downloadDanmaku(entry: entry)) {
+        if (await _restoreInterruptedTaskStatus(task)) {
+          return;
+        }
         await _failTask(task, DownloadStatus.failDanmaku);
+        return;
+      }
+      if (await _restoreInterruptedTaskStatus(task)) {
         return;
       }
 
@@ -667,6 +796,9 @@ class DownloadService extends GetxService {
         source: entry.source,
         pageData: entry.pageData,
       );
+      if (await _restoreInterruptedTaskStatus(task)) {
+        return;
+      }
 
       final videoDir = Directory(path.join(entry.entryDirPath, entry.typeTag));
       if (!videoDir.existsSync()) {
@@ -679,7 +811,7 @@ class DownloadService extends GetxService {
         _downloadCover(entry: entry),
       ]);
 
-      if (!_activeTasks.containsKey(entry.cid)) {
+      if (await _restoreInterruptedTaskStatus(task)) {
         return;
       }
 
@@ -690,8 +822,8 @@ class DownloadService extends GetxService {
             url: first.url,
             path: path.join(videoDir.path, PathUtils.videoNameType1),
             onReceiveProgress: (progress, total) =>
-                _onReceive(entry.cid, progress, total),
-            onDone: ([error]) => _onDone(entry.cid, error),
+                _onReceive(task, progress, total),
+            onDone: ([error]) => _onDone(task, error),
           );
           break;
         case Type2 mediaFileInfo:
@@ -699,8 +831,8 @@ class DownloadService extends GetxService {
             url: mediaFileInfo.video.first.baseUrl,
             path: path.join(videoDir.path, PathUtils.videoNameType2),
             onReceiveProgress: (progress, total) =>
-                _onReceive(entry.cid, progress, total),
-            onDone: ([error]) => _onDone(entry.cid, error),
+                _onReceive(task, progress, total),
+            onDone: ([error]) => _onDone(task, error),
           );
           final audio = mediaFileInfo.audio;
           if (audio != null && audio.isNotEmpty) {
@@ -708,7 +840,7 @@ class DownloadService extends GetxService {
               url: audio.first.baseUrl,
               path: path.join(videoDir.path, PathUtils.audioNameType2),
               onReceiveProgress: null,
-              onDone: ([error]) => _onAudioDone(entry.cid, error),
+              onDone: ([error]) => _onAudioDone(task, error),
             );
           }
           late final first = mediaFileInfo.video.first;
@@ -724,6 +856,9 @@ class DownloadService extends GetxService {
           break;
       }
     } catch (e) {
+      if (await _restoreInterruptedTaskStatus(task)) {
+        return;
+      }
       await _failTask(task, DownloadStatus.failPlayUrl);
       if (kDebugMode) {
         debugPrint('get download url error: $e');
@@ -736,9 +871,8 @@ class DownloadService extends GetxService {
     return entryJsonFile.writeAsString(jsonEncode(entry.toJson()));
   }
 
-  void _onReceive(int cid, int progress, int total) {
-    final task = _activeTasks[cid];
-    if (task == null) {
+  void _onReceive(_ActiveDownloadTask task, int progress, int total) {
+    if (!identical(_activeTasks[task.entry.cid], task)) {
       return;
     }
     final entry = task.entry;
@@ -751,18 +885,17 @@ class DownloadService extends GetxService {
     _refreshDownloadState();
   }
 
-  void _onDone(int cid, [Object? error]) {
-    unawaited(_handleVideoDone(cid, error));
+  void _onDone(_ActiveDownloadTask task, [Object? error]) {
+    unawaited(_handleVideoDone(task, error));
   }
 
-  void _onAudioDone(int cid, [Object? error]) {
-    unawaited(_handleAudioDone(cid, error));
+  void _onAudioDone(_ActiveDownloadTask task, [Object? error]) {
+    unawaited(_handleAudioDone(task, error));
   }
 
-  Future<void> _handleVideoDone(int cid, Object? error) async {
+  Future<void> _handleVideoDone(_ActiveDownloadTask task, Object? error) async {
     await _lock.synchronized(() async {
-      final task = _activeTasks[cid];
-      if (task == null) {
+      if (!identical(_activeTasks[task.entry.cid], task)) {
         return;
       }
 
@@ -801,10 +934,9 @@ class DownloadService extends GetxService {
     });
   }
 
-  Future<void> _handleAudioDone(int cid, Object? error) async {
+  Future<void> _handleAudioDone(_ActiveDownloadTask task, Object? error) async {
     await _lock.synchronized(() async {
-      final task = _activeTasks[cid];
-      if (task == null ||
+      if (!identical(_activeTasks[task.entry.cid], task) ||
           task.videoManager?.status != DownloadStatus.completed) {
         return;
       }
@@ -939,6 +1071,7 @@ class _ActiveDownloadTask {
   final bool isManual;
   DownloadManager? videoManager;
   DownloadManager? audioManager;
+  DownloadStatus? interruptedStatus;
 
   Future<void> cancel({required bool isDelete}) async {
     await videoManager?.cancel(isDelete: isDelete);

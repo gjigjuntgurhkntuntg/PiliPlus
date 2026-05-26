@@ -170,15 +170,7 @@ class DetailItem extends StatelessWidget {
               });
             }
           } else {
-            if (downloadService.isActive(entry)) {
-              downloadService.cancelDownload(
-                entry: entry,
-                isDelete: false,
-                downloadNext: false,
-              );
-            } else {
-              downloadService.startDownload(entry);
-            }
+            downloadService.toggleDownload(entry);
           }
         },
         onLongPress: onLongPress,
