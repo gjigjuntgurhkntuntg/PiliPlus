@@ -127,8 +127,6 @@ class AudioController extends GetxController
 
   bool get _shouldSyncVideoDetailMetadata => _hasVideoDetailController;
 
-  bool get _shouldUpdateMediaItemMetadata => _hasVideoDetailController;
-
   bool get _shouldSyncVideoDetailSideEffects =>
       _hasVideoDetailController && _isAppInForeground;
 
@@ -252,7 +250,7 @@ class AudioController extends GetxController
     if (isClosed) {
       return;
     }
-    if (_shouldUpdateMediaItemMetadata) {
+    if (_shouldSyncVideoDetailSideEffects) {
       videoPlayerServiceHandler?.onVideoDetailChange(
         item,
         (subId.firstOrNull ?? oid).toInt(),
