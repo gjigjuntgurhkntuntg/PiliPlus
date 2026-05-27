@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show File;
 
 import 'package:PiliPlus/common/constants.dart';
@@ -9,11 +10,13 @@ import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/debug_log_service.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path/path.dart' as path;
 
 Future<VideoPlayerServiceHandler> initAudioService() {
@@ -61,6 +64,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() async {
+    unawaited(
+      DebugLogService.log(
+        'audio.handler',
+        'skip to next',
+        extra: {
+          'enableListControl': _enableListControl,
+          'hasCallback': onSkipToNext != null,
+        },
+      ),
+    );
     if (_enableListControl && onSkipToNext != null) {
       onSkipToNext!.call();
     } else {
@@ -71,6 +84,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToPrevious() async {
+    unawaited(
+      DebugLogService.log(
+        'audio.handler',
+        'skip to previous',
+        extra: {
+          'enableListControl': _enableListControl,
+          'hasCallback': onSkipToPrevious != null,
+        },
+      ),
+    );
     if (_enableListControl && onSkipToPrevious != null) {
       onSkipToPrevious!.call();
     } else {
@@ -276,6 +299,84 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (!PlPlayerController.instanceExists()) return;
     _item.add(mediaItem);
     setMediaItem(mediaItem);
+  }
+
+  Future<void> onAudioDetailChangeInBackground(
+    DetailItem data,
+    int cid,
+    String herotag, {
+    bool Function()? isCurrent,
+  }) async {
+    if (!enableBackgroundPlay) return;
+    if (!PlPlayerController.instanceExists()) return;
+    if (isCurrent?.call() == false) return;
+
+    final artUri = await _cachedArtworkUri(data.arc.cover);
+    if (isCurrent?.call() == false) {
+      unawaited(
+        DebugLogService.log(
+          'audio.handler',
+          'ignore stale background media item update',
+          extra: {
+            'cid': cid,
+            'title': data.arc.title,
+          },
+        ),
+      );
+      return;
+    }
+    final item = MediaItem(
+      id: '$cid$herotag',
+      title: data.arc.title,
+      artist: data.owner.name,
+      duration: Duration(seconds: data.arc.duration.toInt()),
+      artUri: artUri,
+    );
+    if (!PlPlayerController.instanceExists()) return;
+    _item.add(item);
+    setMediaItem(item);
+    _refreshPlaybackState();
+    unawaited(
+      DebugLogService.log(
+        'audio.handler',
+        'background media item update',
+        extra: {
+          'id': item.id,
+          'title': item.title,
+          'hasCachedArtwork': artUri != null,
+        },
+      ),
+    );
+  }
+
+  Future<Uri?> _cachedArtworkUri(String? cover) async {
+    final url = ImageUtils.safeThumbnailUrl(cover);
+    if (url.isEmpty) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    if (uri.scheme == 'file' || uri.scheme == 'content') return uri;
+    try {
+      final fileInfo = await DefaultCacheManager().getFileFromCache(url);
+      return fileInfo?.file.absolute.uri;
+    } catch (e) {
+      unawaited(
+        DebugLogService.log(
+          'audio.handler',
+          'get cached artwork failed',
+          extra: {
+            'url': url,
+            'error': e.toString(),
+          },
+        ),
+      );
+      return null;
+    }
+  }
+
+  void _refreshPlaybackState() {
+    if (!enableBackgroundPlay || playbackState.isClosed) return;
+    if (!playbackState.hasValue) return;
+    playbackState.add(playbackState.value);
   }
 
   void onVideoDetailDispose(String herotag) {

@@ -250,11 +250,27 @@ class AudioController extends GetxController
     if (isClosed) {
       return;
     }
+    final expectedOid = oid;
+    final expectedSubId = subId.firstOrNull;
+    final expectedCid = (expectedSubId ?? expectedOid).toInt();
     if (_shouldSyncVideoDetailSideEffects) {
       videoPlayerServiceHandler?.onVideoDetailChange(
         item,
-        (subId.firstOrNull ?? oid).toInt(),
+        expectedCid,
         hashCode.toString(),
+      );
+    } else if (_shouldSyncVideoDetailMetadata) {
+      unawaited(
+        videoPlayerServiceHandler?.onAudioDetailChangeInBackground(
+              item,
+              expectedCid,
+              hashCode.toString(),
+              isCurrent: () =>
+                  !isClosed &&
+                  oid == expectedOid &&
+                  subId.firstOrNull == expectedSubId,
+            ) ??
+            Future<void>.value(),
       );
     } else {
       DebugLogService.log(
