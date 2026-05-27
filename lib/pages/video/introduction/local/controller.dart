@@ -17,6 +17,9 @@ class LocalIntroController extends CommonIntroController {
   void queryVideoIntro() {}
 
   @override
+  int get copyright => throw UnimplementedError();
+
+  @override
   void actionCoinVideo() {
     SmartDialog.showToast('离线播放不支持该操作');
   }

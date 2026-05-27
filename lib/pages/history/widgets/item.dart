@@ -1,6 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
-import 'package:PiliPlus/common/widgets/flutter/layout_builder.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/video_progress_indicator.dart';
 import 'package:PiliPlus/common/widgets/select_mask.dart';
@@ -18,7 +17,7 @@ import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:flutter/material.dart' hide LayoutBuilder;
+import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -246,64 +245,64 @@ class HistoryItem extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (Pref.showMoreDownloadButtons)
-                      PopupMenuItem<String>(
-                        onTap: () async {
-                          final quality =
-                              await DownloadDialogUtils.showDownloadConfirmDialog(
-                                context,
-                                title: '确认缓存该视频？',
-                                content: '将把此视频加入离线下载队列。',
-                          );
+                  if (Pref.showMoreDownloadButtons)
+                    PopupMenuItem<String>(
+                      onTap: () async {
+                        final quality =
+                            await DownloadDialogUtils.showDownloadConfirmDialog(
+                              context,
+                              title: '确认缓存该视频？',
+                              content: '将把此视频加入离线下载队列。',
+                            );
 
-                          if (quality == null) {
+                        if (quality == null) {
+                          return;
+                        }
+
+                        try {
+                          SmartDialog.showLoading(msg: '任务创建中');
+                          int? cid = await SearchHttp.ab2c(
+                            aid: aid,
+                            bvid: bvid,
+                            part: item.history.page,
+                          );
+                          SmartDialog.dismiss();
+                          if (cid == null) {
+                            SmartDialog.showToast('无法解析播放分片 cid');
                             return;
                           }
-
-                          try {
-                            SmartDialog.showLoading(msg: '任务创建中');
-                            int? cid = await SearchHttp.ab2c(
-                              aid: aid,
-                              bvid: bvid,
-                              part: item.history.page,
-                            );
-                            SmartDialog.dismiss();
-                            if (cid == null) {
-                              SmartDialog.showToast('无法解析播放分片 cid');
-                              return;
-                            }
-                            final int totalTimeMilli =
-                                (item.duration ?? 0) * 1000;
-                            if (totalTimeMilli <= 0) {
-                              SmartDialog.showToast('视频时长错误');
-                              return;
-                            }
-                            Get.find<DownloadService>().downloadByIdentifiers(
-                              cid: cid,
-                              bvid: bvid,
-                              totalTimeMilli: totalTimeMilli,
-                              aid: aid,
-                              title: item.title,
-                              cover: item.cover,
-                              ownerId: item.authorMid,
-                              ownerName: item.authorName,
-                              quality: quality,
-                            );
-                            SmartDialog.showToast('已加入下载队列');
-                          } catch (e) {
-                            SmartDialog.dismiss();
-                            SmartDialog.showToast(e.toString());
+                          final int totalTimeMilli =
+                              (item.duration ?? 0) * 1000;
+                          if (totalTimeMilli <= 0) {
+                            SmartDialog.showToast('视频时长错误');
+                            return;
                           }
-                        },
-                        height: 38,
-                        child: const Row(
-                          children: [
-                            Icon(MdiIcons.folderDownloadOutline, size: 16),
-                            SizedBox(width: 6),
-                            Text('离线缓存', style: TextStyle(fontSize: 13)),
-                          ],
-                        ),
+                          Get.find<DownloadService>().downloadByIdentifiers(
+                            cid: cid,
+                            bvid: bvid,
+                            totalTimeMilli: totalTimeMilli,
+                            aid: aid,
+                            title: item.title,
+                            cover: item.cover,
+                            ownerId: item.authorMid,
+                            ownerName: item.authorName,
+                            quality: quality,
+                          );
+                          SmartDialog.showToast('已加入下载队列');
+                        } catch (e) {
+                          SmartDialog.dismiss();
+                          SmartDialog.showToast(e.toString());
+                        }
+                      },
+                      height: 38,
+                      child: const Row(
+                        children: [
+                          Icon(MdiIcons.folderDownloadOutline, size: 16),
+                          SizedBox(width: 6),
+                          Text('离线缓存', style: TextStyle(fontSize: 13)),
+                        ],
                       ),
+                    ),
                   PopupMenuItem(
                     onTap: () => onDelete(item.kid!, business!),
                     height: 38,

@@ -199,6 +199,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       start: state == AppLifecycleState.paused,
     );
     if (isResume) {
+      // TODO: remove
+      // part of https://github.com/flutter/flutter/issues/186723
+      if (Platform.isAndroid && !showSystemBar_) {
+        setEnabledSystemUIMode(.immersiveSticky);
+      }
       if (!ctr.showDanmaku) {
         introController.startTimer();
         ctr.showDanmaku = true;

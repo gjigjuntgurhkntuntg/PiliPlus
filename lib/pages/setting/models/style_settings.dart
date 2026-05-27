@@ -671,8 +671,8 @@ Future<void> _showTransitionDialog(
     ),
   );
   if (res != null) {
+    Get.rootController.defaultTransition = res;
     await GStorage.setting.put(SettingBoxKey.pageTransition, res.index);
-    SmartDialog.showToast('重启生效');
     setState();
   }
 }

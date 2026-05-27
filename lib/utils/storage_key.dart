@@ -157,7 +157,8 @@ abstract final class SettingBoxKey {
       showDynDispute = 'showDynDispute',
       touchSlopH = 'touchSlopH',
       floatingNavBar = 'floatingNavBar',
-      removeSafeArea = 'removeSafeArea';
+      removeSafeArea = 'removeSafeArea',
+      angleDegrees = 'angleDegrees';
 
   static const String enableDebugLog = 'enableDebugLog';
 

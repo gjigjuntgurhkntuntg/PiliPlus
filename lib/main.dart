@@ -16,6 +16,7 @@ import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/services/battery_debug_service.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
+import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/services/multi_window/window_controller_extension.dart';
 import 'package:PiliPlus/services/service_locator.dart';
@@ -105,7 +106,7 @@ Future<void> _initSdkInt() async {
 
 void main() async {
   ScaledWidgetsFlutterBinding.ensureInitialized();
-    // Determine if this engine was launched for a sub-window (player)
+  // Determine if this engine was launched for a sub-window (player)
   String? startupWindowType;
   Map<String, dynamic>? windowArgs;
   try {
@@ -235,7 +236,7 @@ void main() async {
   SmartDialog.config.toast = SmartConfigToast(displayType: .onlyRefresh);
 
   if (PlatformUtils.isMobile) {
-    SystemChrome.setEnabledSystemUIMode(.edgeToEdge);
+    setEnabledSystemUIMode(.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.transparent,
@@ -315,32 +316,12 @@ void main() async {
           '${NativePlayer.apiVersion >> 16}.${NativePlayer.apiVersion & 0xFFFF}',
     };
     final fileHandler = await JsonFileHandler.init();
-    final Catcher2Options debugConfig = Catcher2Options(
-      SilentReportMode(),
-      [
-        ?fileHandler,
-        ConsoleHandler(
-          enableDeviceParameters: false,
-          enableApplicationParameters: false,
-          enableCustomParameters: true,
-        ),
-      ],
-      customParameters: customParameters,
-    );
-
-    final Catcher2Options releaseConfig = Catcher2Options(
-      SilentReportMode(),
-      [
-        ?fileHandler,
-        ConsoleHandler(enableCustomParameters: true),
-      ],
-      customParameters: customParameters,
-    );
 
     Catcher2(
-      debugConfig: debugConfig,
-      releaseConfig: releaseConfig,
-      rootWidget: const MyApp(),
+      [?fileHandler, const ConsoleHandler()],
+      const MyApp(),
+      logger: logger,
+      customParameters: customParameters,
     );
   } else {
     runApp(const MyApp());
@@ -430,57 +411,57 @@ class MyApp extends StatelessWidget {
   }
 
   static Widget _builder(BuildContext context, Widget? child) {
-          // Register channel handler once to accept openInMain requests from player window
-          // Only on desktop platforms where multi-window is supported
-          if (!_playerChannelInited && PlatformUtils.isDesktop) {
-            try {
-              final _ =
-                  const WindowMethodChannel(
-                PlayerWindowManager.channelName,
-                  )..setMethodCallHandler((call) async {
-                switch (call.method) {
-                  case 'openInMain':
-                    final data = call.arguments as Map?;
-                    if (data != null) {
-                      final route = data['route'] as String?;
-                      final args = data['arguments'];
-                      if (route != null && route.isNotEmpty) {
-                        // Navigate in main window
-                        Future.microtask(
-                          () => Get.toNamed(route, arguments: args),
-                        );
-                        return 'ok';
-                      }
-
-                      // fallback: if data contains video params, open video page
-                      if (data.containsKey('cid')) {
-                        Future.microtask(
-                          () => PageUtils.toVideoPage(
-                            videoType: data['videoType'] ?? 0,
-                            aid: data['aid'] as int?,
-                            bvid: data['bvid'] as String?,
-                            cid: data['cid'] as int? ?? 0,
-                            seasonId: data['seasonId'] as int?,
-                            epId: data['epId'] as int?,
-                            pgcType: data['pgcType'] as int?,
-                            cover: data['cover'] as String?,
-                            title: data['title'] as String?,
-                            progress: data['progress'] as int?,
-                            extraArguments: data['extraArguments'] as Map?,
-                          ),
-                        );
-                        return 'ok';
-                      }
+    // Register channel handler once to accept openInMain requests from player window
+    // Only on desktop platforms where multi-window is supported
+    if (!_playerChannelInited && PlatformUtils.isDesktop) {
+      try {
+        final _ =
+            const WindowMethodChannel(
+              PlayerWindowManager.channelName,
+            )..setMethodCallHandler((call) async {
+              switch (call.method) {
+                case 'openInMain':
+                  final data = call.arguments as Map?;
+                  if (data != null) {
+                    final route = data['route'] as String?;
+                    final args = data['arguments'];
+                    if (route != null && route.isNotEmpty) {
+                      // Navigate in main window
+                      Future.microtask(
+                        () => Get.toNamed(route, arguments: args),
+                      );
+                      return 'ok';
                     }
-                    break;
-                  default:
-                    break;
-                }
-                return null;
-              });
-              _playerChannelInited = true;
-            } catch (_) {}
-          }
+
+                    // fallback: if data contains video params, open video page
+                    if (data.containsKey('cid')) {
+                      Future.microtask(
+                        () => PageUtils.toVideoPage(
+                          videoType: data['videoType'] ?? 0,
+                          aid: data['aid'] as int?,
+                          bvid: data['bvid'] as String?,
+                          cid: data['cid'] as int? ?? 0,
+                          seasonId: data['seasonId'] as int?,
+                          epId: data['epId'] as int?,
+                          pgcType: data['pgcType'] as int?,
+                          cover: data['cover'] as String?,
+                          title: data['title'] as String?,
+                          progress: data['progress'] as int?,
+                          extraArguments: data['extraArguments'] as Map?,
+                        ),
+                      );
+                      return 'ok';
+                    }
+                  }
+                  break;
+                default:
+                  break;
+              }
+              return null;
+            });
+        _playerChannelInited = true;
+      } catch (_) {}
+    }
     final uiScale = Pref.uiScale;
     final mediaQuery = MediaQuery.of(context);
     final textScaler = TextScaler.linear(Pref.defaultTextScale);
