@@ -5,8 +5,8 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/video_progress_indicator.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
 import 'package:PiliPlus/common/widgets/video_popup_menu.dart';
+import 'package:PiliPlus/common/widgets/video_card/watch_later_button.dart';
 import 'package:PiliPlus/http/search.dart';
-import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/models/horizontal_video_model.dart';
 import 'package:PiliPlus/models_new/video/video_detail/dimension.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
@@ -35,7 +35,6 @@ class VideoCardH extends StatefulWidget {
 
 class _VideoCardHState extends State<VideoCardH> {
   bool _isHovering = false;
-  bool _isInWatchLater = false;
 
   HorizontalVideoModel get videoItem => widget.videoItem;
   VoidCallback? get onTap => widget.onTap;
@@ -174,12 +173,21 @@ class _VideoCardHState extends State<VideoCardH> {
                                 ),
                               // 桌面端悬停显示稍后再看按钮
                               if (!PlatformUtils.isMobile &&
-                                  _isHovering &&
                                   videoItem.bvid != null)
                                 Positioned(
                                   top: 4,
                                   right: 4,
-                                  child: _buildWatchLaterButton(),
+                                  child: Visibility(
+                                    visible: _isHovering,
+                                    maintainState: true,
+                                    child: QuickWatchLaterButton(
+                                      target: WatchLaterTarget.from(
+                                        bvid: videoItem.bvid,
+                                        aid: videoItem.aid,
+                                        fallback: videoItem,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                             ],
                           );
@@ -204,43 +212,6 @@ class _VideoCardHState extends State<VideoCardH> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWatchLaterButton() {
-    return Material(
-      color: _isInWatchLater
-          ? Colors.green.withValues(alpha: 0.8)
-          : Colors.black54,
-      borderRadius: BorderRadius.circular(4),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: () async {
-          if (_isInWatchLater) {
-            // 取消稍后再看
-            var res = await UserHttp.toViewDel(aids: videoItem.aid.toString());
-            res.toast();
-            if (res.isSuccess) {
-              setState(() => _isInWatchLater = false);
-            }
-          } else {
-            // 添加稍后再看
-            var res = await UserHttp.toViewLater(bvid: videoItem.bvid);
-            res.toast();
-            if (res.isSuccess) {
-              setState(() => _isInWatchLater = true);
-            }
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(
-            _isInWatchLater ? Icons.check : Icons.watch_later_outlined,
-            size: 18,
-            color: Colors.white,
-          ),
         ),
       ),
     );
