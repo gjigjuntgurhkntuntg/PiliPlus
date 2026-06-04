@@ -1,5 +1,6 @@
 import 'dart:async' show unawaited;
-import 'dart:io' show File;
+import 'dart:io' show File, Platform;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart' show DetailItem;
@@ -11,12 +12,13 @@ import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/debug_log_service.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
+import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path/path.dart' as path;
 
 Future<VideoPlayerServiceHandler> initAudioService() {
@@ -144,7 +146,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     bool isBuffering,
     bool isLive,
   ) {
-    if (!enableBackgroundPlay || _item.isEmpty) {
+    if (!enableBackgroundPlay ||
+        _item.isEmpty ||
+        !PlPlayerController.instanceExists()) {
       return;
     }
 
@@ -170,9 +174,33 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         },
       ),
     );
+    if (Platform.isAndroid &&
+        (AndroidHelper.isPipMode ||
+            PlPlayerController.instance?.isAutoEnterPip == true)) {
+      AndroidHelper.updatePipActions(
+        PlatformDispatcher.instance.engineId!,
+        isLive,
+        playing,
+      );
+    }
   }
 
   /// 构建媒体控制按钮列表
+  MediaControl _buildPlayPauseControl(bool playing) {
+    if (playing) {
+      return const MediaControl(
+        androidIcon: 'drawable/ic_player_pause',
+        label: 'Pause',
+        action: MediaAction.pause,
+      );
+    }
+    return const MediaControl(
+      androidIcon: 'drawable/ic_player_play',
+      label: 'Play',
+      action: MediaAction.play,
+    );
+  }
+
   List<MediaControl> _buildMediaControls(bool playing, bool isLive) {
     if (_enableListControl) {
       // 列表播放模式：显示上一个/下一个
@@ -181,7 +209,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
           MediaControl.skipToPrevious.copyWith(
             androidIcon: 'drawable/ic_baseline_skip_previous_24',
           ),
-        if (playing) MediaControl.pause else MediaControl.play,
+        _buildPlayPauseControl(playing),
         if (!isLive && onSkipToNext != null)
           MediaControl.skipToNext.copyWith(
             androidIcon: 'drawable/ic_baseline_skip_next_24',
@@ -191,13 +219,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       // 普通模式：显示快退/快进
       return [
         if (!isLive)
-          MediaControl.rewind.copyWith(
-            androidIcon: 'drawable/ic_baseline_replay_10_24',
+          const MediaControl(
+            androidIcon: 'drawable/ic_player_rewind_10s',
+            label: 'Rewind',
+            action: MediaAction.rewind,
           ),
-        if (playing) MediaControl.pause else MediaControl.play,
+        _buildPlayPauseControl(playing),
         if (!isLive)
-          MediaControl.fastForward.copyWith(
-            androidIcon: 'drawable/ic_baseline_forward_10_24',
+          const MediaControl(
+            androidIcon: 'drawable/ic_player_fast_forward_10s',
+            label: 'Fast Forward',
+            action: MediaAction.fastForward,
           ),
       ];
     }
@@ -356,7 +388,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (uri == null) return null;
     if (uri.scheme == 'file' || uri.scheme == 'content') return uri;
     try {
-      final fileInfo = await DefaultCacheManager().getFileFromCache(url);
+      final fileInfo = await CacheManager.manager.getFileFromCache(url);
       return fileInfo?.file.absolute.uri;
     } catch (e) {
       unawaited(

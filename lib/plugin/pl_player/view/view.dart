@@ -52,6 +52,8 @@ import 'package:PiliPlus/plugin/pl_player/widgets/common_btn.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/mpv_convert_webp.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/play_pause_btn.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
+import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
@@ -73,7 +75,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show RenderProxyBox, SemanticsConfiguration;
 import 'package:flutter/services.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -333,6 +334,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     final nextController = widget.plPlayerController.videoController;
     if (nextController != null && !identical(videoController, nextController)) {
       videoController = nextController;
+    }
+    if (Platform.isAndroid && AndroidHelper.isPipMode) {
+      plPlayerController.controls = false;
     }
   }
 

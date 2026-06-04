@@ -25,7 +25,6 @@ import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/calc_window_position.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
-import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/json_file_handler.dart';
 import 'package:PiliPlus/utils/max_screen_size.dart';
@@ -42,7 +41,6 @@ import 'package:PiliPlus/window/player_entry.dart';
 import 'package:catcher_2/catcher_2.dart';
 import 'package:collection/collection.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -98,10 +96,6 @@ Future<void> _initTmpPath() async {
 
 Future<void> _initAppPath() async {
   appSupportDirPath = (await getApplicationSupportDirectory()).path;
-}
-
-Future<void> _initSdkInt() async {
-  DeviceUtils.sdkInt = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
 }
 
 void main() async {
@@ -198,7 +192,11 @@ void main() async {
     exit(0);
   }
   ScaledWidgetsFlutterBinding.instance.scaleFactor = Pref.uiScale;
-  await Future.wait([_initDownPath(), _initTmpPath()]);
+  await Future.wait([
+    _initDownPath(),
+    _initTmpPath(),
+    CacheManager.ensureInitialized(),
+  ]);
   Get
     ..lazyPut(AccountService.new)
     ..lazyPut(DownloadService.new);
@@ -207,8 +205,8 @@ void main() async {
   CacheManager.autoClearCache();
 
   if (PlatformUtils.isMobile) {
+    if (Platform.isAndroid) MaxScreenSize.init();
     await Future.wait([
-      if (Platform.isAndroid) ...[_initSdkInt(), MaxScreenSize.init()],
       if (Pref.horizontalScreen) ?fullMode() else ?portraitUpMode(),
       setupServiceLocator(),
     ]);
@@ -236,7 +234,7 @@ void main() async {
   SmartDialog.config.toast = SmartConfigToast(displayType: .onlyRefresh);
 
   if (PlatformUtils.isMobile) {
-    setEnabledSystemUIMode(.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.transparent,

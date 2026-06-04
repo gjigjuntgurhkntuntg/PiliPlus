@@ -30,7 +30,7 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -376,11 +376,12 @@ class AuthorPanel extends StatelessWidget {
                         return;
                       }
 
-                      final quality = await DownloadDialogUtils.showDownloadConfirmDialog(
-                        context,
-                        title: '确认缓存该视频？',
-                        content: '将把此视频加入离线下载队列。',
-                      );
+                      final quality =
+                          await DownloadDialogUtils.showDownloadConfirmDialog(
+                            context,
+                            title: '确认缓存该视频？',
+                            content: '将把此视频加入离线下载队列。',
+                          );
 
                       if (quality == null) {
                         return;

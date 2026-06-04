@@ -159,9 +159,7 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                                 Colors.black54,
                               ],
                             ),
-                            borderRadius: BorderRadius.vertical(
-                              bottom: Style.imgRadius,
-                            ),
+                            borderRadius: .vertical(bottom: Style.imgRadius),
                           ),
                           child: DefaultTextStyle.merge(
                             style: TextStyle(
@@ -176,22 +174,16 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                                   DecoratedBox(
                                     decoration: const BoxDecoration(
                                       color: Colors.black45,
-                                      borderRadius: BorderRadius.all(
-                                        Radius.circular(4),
-                                      ),
+                                      borderRadius: .all(.circular(4)),
                                     ),
                                     child: Text(' $durationText '),
                                   ),
                                   const SizedBox(width: 6),
                                 ],
                                 if (video.stat case final stat?) ...[
-                                  Text(
-                                    '${NumUtils.numFormat(stat.play)}播放',
-                                  ),
+                                  Text('${NumUtils.numFormat(stat.play)}播放'),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    '${NumUtils.numFormat(stat.danmu)}弹幕',
-                                  ),
+                                  Text('${NumUtils.numFormat(stat.danmu)}弹幕'),
                                 ],
                                 const Spacer(),
                                 Image.asset(

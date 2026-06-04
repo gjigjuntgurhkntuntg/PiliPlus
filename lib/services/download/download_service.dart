@@ -17,6 +17,7 @@ import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/danmaku/controller.dart';
 import 'package:PiliPlus/services/download/download_foreground_service.dart';
 import 'package:PiliPlus/services/download/download_manager.dart';
+import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/extension/file_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
@@ -24,7 +25,6 @@ import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -760,7 +760,7 @@ class DownloadService extends GetxService {
       if (File(filePath).existsSync()) {
         return true;
       }
-      final file = (await DefaultCacheManager().getFileFromCache(
+      final file = (await CacheManager.manager.getFileFromCache(
         entry.cover,
       ))?.file;
       if (file != null) {

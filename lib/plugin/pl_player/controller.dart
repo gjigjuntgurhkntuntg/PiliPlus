@@ -30,6 +30,8 @@ import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/android/android_helper.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/asset_utils.dart';
 import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/extension/box_ext.dart';
@@ -47,7 +49,6 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart' show getCrc32;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:easy_debounce/easy_throttle.dart';
-import 'package:floating/floating.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, DeviceOrientation;
@@ -215,7 +216,7 @@ class PlPlayerController with BlockConfigMixin {
 
   late final bool autoPiP = Pref.autoPiP;
   bool get isPipMode =>
-      (Platform.isAndroid && Floating().isPipMode) ||
+      (Platform.isAndroid && AndroidHelper.isPipMode) ||
       (PlatformUtils.isDesktop && isDesktopPip);
   late bool isDesktopPip = false;
   late Rect _lastWindowBounds;
@@ -281,7 +282,8 @@ class PlPlayerController with BlockConfigMixin {
     }
   }
 
-  late bool _shouldSetPip = false;
+  late bool _isAutoEnterPip = false;
+  bool get isAutoEnterPip => _isAutoEnterPip;
 
   static bool get _isCurrVideoPage {
     final routing = Get.routing;
@@ -295,23 +297,22 @@ class PlPlayerController with BlockConfigMixin {
     return routeName == '/videoV' || routeName == '/liveRoom';
   }
 
-  void enterPip({bool isAuto = false}) {
+  void enterPip({bool autoEnter = false}) {
     if (videoPlayerController != null) {
-      controls = false;
       final state = videoPlayerController!.state;
       PageUtils.enterPip(
-        isAuto: isAuto,
+        autoEnter: autoEnter,
         width: state.width == 0 ? width : state.width,
         height: state.height == 0 ? height : state.height,
+        isLive: isLive,
+        isPlaying: playerStatus.isPlaying,
       );
     }
   }
 
   void _disableAutoEnterPip() {
-    if (_shouldSetPip) {
-      Utils.channel.invokeMethod('setPipAutoEnterEnabled', {
-        'autoEnable': false,
-      });
+    if (_isAutoEnterPip) {
+      PiliAndroidHelper.disableAutoEnterPip();
     }
   }
 
@@ -586,17 +587,19 @@ class PlPlayerController with BlockConfigMixin {
     }
 
     if (Platform.isAndroid && autoPiP) {
-      if (DeviceUtils.sdkInt < 36) {
-        Utils.channel.setMethodCallHandler((call) async {
-          if (call.method == 'onUserLeaveHint') {
-            if (playerStatus.isPlaying && _isCurrVideoPage) {
-              enterPip();
-            }
-          }
-        });
+      if (DeviceUtils.sdkInt < 31) {
+        AndroidHelper$ToDart.onUserLeaveHint = Runnable.implement(
+          $Runnable(run: _onUserLeaveHint),
+        );
       } else {
-        _shouldSetPip = true;
+        _isAutoEnterPip = true;
       }
+    }
+  }
+
+  void _onUserLeaveHint() {
+    if (playerStatus.isPlaying && _isCurrVideoPage) {
+      enterPip();
     }
   }
 
@@ -1084,9 +1087,9 @@ class PlPlayerController with BlockConfigMixin {
       stream.playing.listen((event) {
         WakelockPlus.toggle(enable: event);
         if (event) {
-          if (_shouldSetPip) {
+          if (_isAutoEnterPip) {
             if (_isCurrVideoPage) {
-              enterPip(isAuto: true);
+              enterPip(autoEnter: true);
             } else {
               _disableAutoEnterPip();
             }
@@ -1246,18 +1249,10 @@ class PlPlayerController with BlockConfigMixin {
       //   }
       // }),
       // 媒体通知监听
-      if (videoPlayerServiceHandler != null) ...[
-        playerStatus.listen((PlayerStatus event) {
-          videoPlayerServiceHandler!.onStatusChange(
-            event,
-            isBuffering.value,
-            isLive,
-          );
-        }),
+      if (videoPlayerServiceHandler != null)
         positionSeconds.listen((int event) {
           videoPlayerServiceHandler!.onPositionChange(Duration(seconds: event));
         }),
-      ],
     ];
   }
 
@@ -1805,7 +1800,10 @@ class PlPlayerController with BlockConfigMixin {
     if (showSeekPreview) {
       _clearPreview();
     }
-    Utils.channel.setMethodCallHandler(null);
+    if (Platform.isAndroid) {
+      AndroidHelper$ToDart.onUserLeaveHint?.release();
+      AndroidHelper$ToDart.onUserLeaveHint = null;
+    }
     _timer?.cancel();
     _timerForSeek?.cancel();
     _timerForShowingVolume?.cancel();
