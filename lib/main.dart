@@ -140,6 +140,8 @@ void main() async {
         accountData: accountData,
         subWindowType: businessIdFromSettings ?? startupWindowType ?? 'player',
       );
+      HttpOverrides.global = _CustomHttpOverrides();
+      await CacheManager.ensureInitialized(cacheSubDir: 'player_window');
 
       // Initialize downloadPath for sub-window so offline cache list works.
       if (PlatformUtils.isDesktop) {

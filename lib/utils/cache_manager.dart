@@ -10,8 +10,18 @@ import 'package:path_provider/path_provider.dart';
 abstract final class CacheManager {
   static late final DefaultCacheManager manager;
 
-  static Future<void> ensureInitialized() =>
-      DefaultCacheManager.init().then((i) => manager = i);
+  static Future<void> ensureInitialized({String? cacheSubDir}) async {
+    final i = await DefaultCacheManager.init(
+      cacheDirectoryProvider: cacheSubDir == null
+          ? getTemporaryDirectory
+          : () async {
+              final tempDirectory = await getTemporaryDirectory();
+              return Directory(path.join(tempDirectory.path, cacheSubDir));
+            },
+    );
+    manager = i;
+    CachedNetworkImageProvider.defaultCacheManager = i;
+  }
 
   // 获取缓存目录
   @pragma('vm:notify-debugger-on-exception')
