@@ -186,6 +186,26 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     });
   }
 
+  void _handleWindowBack() {
+    if (PlayerWindowService.isPlayerWindow) {
+      if (Get.key.currentState?.canPop() ?? false) {
+        Get.back();
+      } else {
+        SmartDialog.showToast('已经是第一个视频了');
+      }
+      return;
+    }
+    Get.back();
+  }
+
+  void _handleWindowHome() {
+    if (PlayerWindowService.isPlayerWindow) {
+      PlayerWindowService.showMainWindow();
+      return;
+    }
+    videoDetailController.plPlayerController.onCloseAll();
+  }
+
   void positionListener(Duration position) {
     videoDetailController.playedTime = position;
   }
@@ -779,35 +799,24 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                                                     .colorScheme
                                                     .onSurface,
                                               ),
-                                              onPressed: () {
-                                                if (PlayerWindowService
-                                                    .isPlayerWindow) {
-                                                  PlayerWindowService.showMainWindow();
-                                                } else {
-                                                  Get.back();
-                                                }
-                                              },
+                                              onPressed: _handleWindowBack,
                                             ),
                                           ),
-                                          if (!PlayerWindowService
-                                              .isPlayerWindow)
-                                            SizedBox(
-                                              width: 42,
-                                              height: 34,
-                                              child: IconButton(
-                                                tooltip: '返回主页',
-                                                icon: Icon(
-                                                  FontAwesomeIcons.house,
-                                                  size: 15,
-                                                  color: themeData
-                                                      .colorScheme
-                                                      .onSurface,
-                                                ),
-                                                onPressed: videoDetailController
-                                                    .plPlayerController
-                                                    .onCloseAll,
+                                          SizedBox(
+                                            width: 42,
+                                            height: 34,
+                                            child: IconButton(
+                                              tooltip: '返回主页',
+                                              icon: Icon(
+                                                FontAwesomeIcons.house,
+                                                size: 15,
+                                                color: themeData
+                                                    .colorScheme
+                                                    .onSurface,
                                               ),
+                                              onPressed: _handleWindowHome,
                                             ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -1248,36 +1257,28 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                           ),
                         ],
                       ),
-                      onPressed: () {
-                        if (PlayerWindowService.isPlayerWindow) {
-                          PlayerWindowService.showMainWindow();
-                        } else {
-                          Get.back();
-                        }
-                      },
+                      onPressed: _handleWindowBack,
                     ),
                   ),
-                  if (!PlayerWindowService.isPlayerWindow)
-                    SizedBox(
-                      width: 42,
-                      height: 34,
-                      child: IconButton(
-                        tooltip: '返回主页',
-                        icon: const Icon(
-                          FontAwesomeIcons.house,
-                          size: 15,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 1.5,
-                              color: Colors.black,
-                            ),
-                          ],
-                        ),
-                        onPressed:
-                            videoDetailController.plPlayerController.onCloseAll,
+                  SizedBox(
+                    width: 42,
+                    height: 34,
+                    child: IconButton(
+                      tooltip: '返回主页',
+                      icon: const Icon(
+                        FontAwesomeIcons.house,
+                        size: 15,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 1.5,
+                            color: Colors.black,
+                          ),
+                        ],
                       ),
+                      onPressed: _handleWindowHome,
                     ),
+                  ),
                 ],
               ),
               actions: [

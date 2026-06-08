@@ -360,6 +360,27 @@ class HeaderControlState extends State<HeaderControl>
     }
   }
 
+  void _handleWindowBack() {
+    if (PlayerWindowService.isPlayerWindow) {
+      if (Get.key.currentState?.canPop() ?? false) {
+        Get.back();
+      } else {
+        SmartDialog.showToast('已经是第一个视频了');
+      }
+      return;
+    }
+    plPlayerController.onPopInvokedWithResult(false, null);
+  }
+
+  void _handleWindowHome() {
+    if (PlayerWindowService.isPlayerWindow) {
+      PlayerWindowService.showMainWindow();
+      plPlayerController.onPopInvokedWithResult(false, null);
+      return;
+    }
+    plPlayerController.onCloseAll();
+  }
+
   /// 设置面板
   void showSettingSheet() {
     showBottomSheet(
@@ -1756,18 +1777,11 @@ class HeaderControlState extends State<HeaderControl>
                     size: 15,
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    if (PlayerWindowService.isPlayerWindow) {
-                      PlayerWindowService.showMainWindow();
-                    }
-
-                    plPlayerController.onPopInvokedWithResult(false, null);
-                  },
+                  onPressed: _handleWindowBack,
                 ),
               ),
               if (!plPlayerController.isDesktopPip &&
-                  (!isFullScreen || !isPortrait) &&
-                  !PlayerWindowService.isPlayerWindow)
+                  (!isFullScreen || !isPortrait))
                 SizedBox(
                   width: btnWidth,
                   height: btnHeight,
@@ -1779,7 +1793,7 @@ class HeaderControlState extends State<HeaderControl>
                       size: 15,
                       color: Colors.white,
                     ),
-                    onPressed: plPlayerController.onCloseAll,
+                    onPressed: _handleWindowHome,
                   ),
                 ),
               title,

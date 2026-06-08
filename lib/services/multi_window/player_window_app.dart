@@ -151,22 +151,32 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
     };
 
     // 导航到视频页面
-    Get.offAllNamed(
-      '/videoV',
-      arguments: {
-        'aid': args.aid,
-        'bvid': args.bvid,
-        'cid': args.cid,
-        'videoType': videoType,
-        if (args.seasonId != null) 'seasonId': args.seasonId,
-        if (args.epId != null) 'epId': args.epId,
-        if (args.pgcType != null) 'pgcType': args.pgcType,
-        if (args.cover != null) 'pic': args.cover,
-        'heroTag': 'playerWindow_${args.bvid}',
-        if (args.progress != null) 'progress': args.progress,
-        ...?args.extraArguments,
-      },
-    );
+    final routeArgs = {
+      'aid': args.aid,
+      'bvid': args.bvid,
+      'cid': args.cid,
+      'videoType': videoType,
+      if (args.seasonId != null) 'seasonId': args.seasonId,
+      if (args.epId != null) 'epId': args.epId,
+      if (args.pgcType != null) 'pgcType': args.pgcType,
+      if (args.cover != null) 'pic': args.cover,
+      'heroTag': 'playerWindow_${args.bvid}',
+      if (args.progress != null) 'progress': args.progress,
+      ...?args.extraArguments,
+    };
+    if (Get.currentRoute == '/videoV' &&
+        (Get.key.currentState?.canPop() ?? false)) {
+      Get.toNamed(
+        '/videoV',
+        arguments: routeArgs,
+        preventDuplicates: false,
+      );
+    } else {
+      Get.offAllNamed(
+        '/videoV',
+        arguments: routeArgs,
+      );
+    }
   }
 
   @override
@@ -289,21 +299,14 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
                   return;
                 }
 
-                if (Get.routing.route is! GetPageRoute) {
+                if (Get.key.currentState?.canPop() ?? false) {
                   Get.back();
                   return;
                 }
 
-                final route = Get.routing.route;
-                if (route is GetPageRoute) {
-                  if (route.popDisposition == .doNotPop) {
-                    route.onPopInvokedWithResult(false, null);
-                    return;
-                  }
+                if (Get.currentRoute != '/videoV') {
+                  windowManager.close();
                 }
-
-                // 关闭播放器窗口
-                windowManager.close();
               }
 
               return BackDetector(

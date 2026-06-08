@@ -416,13 +416,13 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
         case 'playVideo':
           final args = call.arguments as Map?;
           if (args != null) {
-            _navigateToVideo(args);
+            await _navigateToVideo(args);
           }
           return;
         case 'playLive':
           final args = call.arguments as Map?;
           if (args != null) {
-            _navigateToLive(args);
+            await _navigateToLive(args);
           }
           return;
         default:
@@ -460,13 +460,13 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
           case 'playVideo':
             final args = call.arguments;
             if (args is Map) {
-              _navigateToVideo(args);
+              await _navigateToVideo(args);
             }
             return;
           case 'playLive':
             final args = call.arguments;
             if (args is Map) {
-              _navigateToLive(args);
+              await _navigateToLive(args);
             }
             return;
           default:
@@ -512,7 +512,17 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     await windowManager.hide();
   }
 
-  void _navigateToVideo(Map args) {
+  Future<void> _pauseCurrentPlayerBeforeNavigation() async {
+    try {
+      await PlPlayerController.pauseIfExists(notify: false);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PlayerWindow] pause before navigation failed: $e');
+      }
+    }
+  }
+
+  Future<void> _navigateToVideo(Map args) async {
     final currentArgs = Get.arguments;
     final currentHeroTag = currentArgs is Map ? currentArgs['heroTag'] : null;
     final nextArgs = _buildVideoArguments(args);
@@ -527,15 +537,27 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
     // Update window title for video
     windowManager.setTitle('${Constants.appName} - 播放器');
 
-    Get.offAllNamed(
-      '/videoV',
-      arguments: nextArgs,
-    );
+    await _pauseCurrentPlayerBeforeNavigation();
+
+    if (Get.currentRoute == '/videoV' && (Get.key.currentState?.canPop() ?? false)) {
+      Get.toNamed(
+        '/videoV',
+        arguments: nextArgs,
+        preventDuplicates: false,
+      );
+    } else {
+      Get.offAllNamed(
+        '/videoV',
+        arguments: nextArgs,
+      );
+    }
   }
 
-  void _navigateToLive(Map args) {
+  Future<void> _navigateToLive(Map args) async {
     final roomId = args['roomId'] as int?;
     windowManager.setTitle('${Constants.appName} - 直播');
+
+    await _pauseCurrentPlayerBeforeNavigation();
 
     // LiveRoomPage expects roomId as a direct int argument, not a Map
     Get.offAllNamed(
@@ -673,21 +695,15 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
                   return;
                 }
 
-                if (Get.routing.route is! GetPageRoute) {
+                if (Get.key.currentState?.canPop() ?? false) {
                   Get.back();
                   return;
                 }
 
-                final route = Get.routing.route;
-                if (route is GetPageRoute) {
-                  if (route.popDisposition == .doNotPop) {
-                    route.onPopInvokedWithResult(false, null);
-                    return;
-                  }
+                if (Get.currentRoute != '/videoV') {
+                  // 仅在非首个视频或非视频页时才允许窗口级退回
+                  windowManager.close();
                 }
-
-                // 关闭播放器窗口
-                windowManager.close();
               }
 
               return BackDetector(
