@@ -19,6 +19,8 @@ import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/contact/view.dart';
 import 'package:PiliPlus/pages/fav_panel/view.dart';
 import 'package:PiliPlus/pages/share/view.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
+import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/player_window_manager.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
@@ -42,6 +44,35 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 abstract final class PageUtils {
+  static final Map<String, PlayerStatus> _playerWindowStatusBeforeNavigation =
+      {};
+
+  static PlayerStatus? takePlayerWindowStatusBeforeNavigation(String heroTag) {
+    return _playerWindowStatusBeforeNavigation.remove(heroTag);
+  }
+
+  static void _cachePlayerWindowStatusBeforeNavigation() {
+    final currentArgs = Get.arguments;
+    final heroTag = currentArgs is Map ? currentArgs['heroTag'] : null;
+    final status = PlPlayerController.getPlayerStatusIfExists();
+    if (heroTag is String && status != null) {
+      _playerWindowStatusBeforeNavigation[heroTag] = status;
+    }
+  }
+
+  static Future<void> _pausePlayerWindowBeforeNavigation() async {
+    _cachePlayerWindowStatusBeforeNavigation();
+    try {
+      await PlPlayerController.pauseIfExists(notify: false);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[PageUtils] pause player window before navigation failed: $e',
+        );
+      }
+    }
+  }
+
   static RelativeRect menuPosition(Offset offset) {
     return .fromLTRB(offset.dx, offset.dy, offset.dx, 0);
   }
@@ -619,6 +650,7 @@ abstract final class PageUtils {
 
     // If already in player window, navigate within this window
     if (PlayerWindowService.isPlayerWindow) {
+      await _pausePlayerWindowBeforeNavigation();
       if (off) {
         return Get.offNamed(
           '/videoV',

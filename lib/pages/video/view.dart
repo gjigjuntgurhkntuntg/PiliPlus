@@ -423,10 +423,14 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
     introController.cancelTimer();
 
+    final playerStatusBeforeNavigation = PlayerWindowService.isPlayerWindow
+        ? PageUtils.takePlayerWindowStatusBeforeNavigation(heroTag)
+        : null;
     videoDetailController
       ..videoState.value = false
       ..cancelBlockListener()
-      ..playerStatus = plPlayerController?.playerStatus.value
+      ..playerStatus =
+          playerStatusBeforeNavigation ?? plPlayerController?.playerStatus.value
       ..brightness = plPlayerController?.brightness.value;
     if (plPlayerController != null) {
       videoDetailController.makeHeartBeat();
