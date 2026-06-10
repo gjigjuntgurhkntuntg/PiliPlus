@@ -243,6 +243,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   // 播放器状态监听
   Future<void> playerListener(PlayerStatus status) async {
     final isPlaying = status.isPlaying;
+    final isCompleted = status.isCompleted;
+    final skipCompletedRefresh =
+        isCompleted && PlayerWindowService.isPlayerWindow;
     try {
       if (videoDetailController.scrollCtr.hasClients) {
         if (isPlaying) {
@@ -256,10 +259,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                   videoDetailController.scrollCtr.offset /
                       videoDetailController.videoHeight,
             );
-          } else {
+          } else if (!skipCompletedRefresh) {
             videoDetailController.refreshPage();
           }
-        } else {
+        } else if (!skipCompletedRefresh) {
           videoDetailController.refreshPage();
         }
       }
@@ -267,7 +270,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       if (kDebugMode) debugPrint('handle player status: $e');
     }
 
-    if (status.isCompleted) {
+    if (isCompleted) {
       try {
         if (videoDetailController
                 .steinEdgeInfo
@@ -298,6 +301,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             exitFlag = !introController.nextPlay();
           case PlayRepeat.pause:
         }
+      }
+
+      if (skipCompletedRefresh && exitFlag) {
+        videoDetailController.refreshPage();
       }
 
       if (exitFlag) {
