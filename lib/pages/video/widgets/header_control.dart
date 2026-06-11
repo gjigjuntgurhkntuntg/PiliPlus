@@ -563,11 +563,12 @@ class HeaderControlState extends State<HeaderControl>
                           );
                         },
                       ),
-                      if ((isFileSource &&
-                              !(plPlayerController.dataSource as FileSource)
-                                  .isMp4) ||
-                          (!isFileSource &&
-                              videoDetailCtr.audioUrl?.isNotEmpty == true))
+                      if (!PlayerWindowService.isPlayerWindow &&
+                          ((isFileSource &&
+                                  !(plPlayerController.dataSource as FileSource)
+                                      .isMp4) ||
+                              (!isFileSource &&
+                                  videoDetailCtr.audioUrl?.isNotEmpty == true)))
                         Obx(
                           () {
                             final onlyPlayAudio =
@@ -1826,7 +1827,7 @@ class HeaderControlState extends State<HeaderControl>
                 }),
               if (!isFileSource) ...[
                 if (!isFSOrPip) ...[
-                  if (videoDetailCtr.isUgc)
+                  if (videoDetailCtr.isUgc && !PlayerWindowService.isPlayerWindow)
                     SizedBox(
                       width: btnWidth,
                       height: btnHeight,
