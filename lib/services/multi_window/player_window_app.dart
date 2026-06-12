@@ -283,8 +283,8 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
             }
           },
           builder: FlutterSmartDialog.init(
-            toastBuilder: (String msg) => CustomToast(msg: msg),
-            loadingBuilder: (msg) => LoadingWidget(msg: msg),
+            toastBuilder: CustomToast.new,
+            loadingBuilder: LoadingWidget.new,
             builder: (context, child) {
               child = MediaQuery(
                 data: MediaQuery.of(context).copyWith(

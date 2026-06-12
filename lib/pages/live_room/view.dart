@@ -178,8 +178,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
       ScreenBrightnessPlatform.instance.resetApplicationScreenBrightness();
     }
     PlPlayerController.setPlayCallBack(null);
-    plPlayerController
-      ..removeStatusLister(playerListener);
+    plPlayerController.removeStatusLister(playerListener);
     PlPlayerController.updatePlayCount();
     for (final e in LiveContributionRankType.values) {
       Get.delete<ContributionRankController>(

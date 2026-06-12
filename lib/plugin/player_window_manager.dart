@@ -185,7 +185,7 @@ class PlayerWindowManager {
     String? cover,
     String? title,
     Map<String, dynamic>? extraArguments,
-  }) async {
+  }) {
     final args = PlayerWindowArguments(
       roomId: roomId,
       cover: cover,

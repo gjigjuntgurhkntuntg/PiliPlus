@@ -775,8 +775,8 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
           getPages: _playerWindowRoutes,
           initialRoute: '/',
           builder: FlutterSmartDialog.init(
-            toastBuilder: (String msg) => CustomToast(msg: msg),
-            loadingBuilder: (msg) => LoadingWidget(msg: msg),
+            toastBuilder: CustomToast.new,
+            loadingBuilder: LoadingWidget.new,
             builder: (context, child) {
               child = MediaQuery(
                 data: MediaQuery.of(context).copyWith(

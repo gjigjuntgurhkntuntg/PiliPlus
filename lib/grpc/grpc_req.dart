@@ -61,7 +61,7 @@ abstract final class GrpcReq {
     final requestUrl = HttpString.appBaseUrl + url;
     final requestData = compressProtobuf(request.writeToBuffer());
 
-    Future<Response<dynamic>> makeRequest({required bool useHttp11}) async {
+    Future<Response<dynamic>> makeRequest({required bool useHttp11}) {
       final client = useHttp11 ? Request.http11Dio : Request.dio;
       return client.post<Uint8List>(
         requestUrl,
