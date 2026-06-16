@@ -161,11 +161,15 @@ class PlayerWindowService {
         cover: arguments.cover,
         title: arguments.title,
         progress: arguments.progress,
+        progressAid: arguments.progressAid,
+        progressBvid: arguments.progressBvid,
+        progressCid: arguments.progressCid,
         videoType: arguments.videoType,
         extraArguments: arguments.extraArguments,
         settings: {
           ..._getSettingsSnapshot(),
-          'businessId': WindowArguments.businessIdPlayer, // Add businessId to settings
+          'businessId':
+              WindowArguments.businessIdPlayer, // Add businessId to settings
         },
       );
 

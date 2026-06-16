@@ -209,6 +209,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   }
 
   void positionListener(Duration position) {
+    if (videoDetailController.isSwitchingVideo) {
+      return;
+    }
     videoDetailController.playedTime = position;
   }
 

@@ -102,20 +102,21 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
 
     windowManager
       ..waitUntilReadyToShow(windowOptions, () async {
-      if (savedPosition != null) {
-        await windowManager.setPosition(
-          Offset(savedPosition[0], savedPosition[1]),
-        );
-      } else {
-        await windowManager.setBounds(await calcWindowPosition(savedSize) & savedSize);
-      }
-      await windowManager.show();
-      await windowManager.focus();
-      if (Pref.playerWindowAlwaysOnTop) {
-        await windowManager.setAlwaysOnTop(true);
-      }
+        if (savedPosition != null) {
+          await windowManager.setPosition(
+            Offset(savedPosition[0], savedPosition[1]),
+          );
+        } else {
+          await windowManager.setBounds(
+            await calcWindowPosition(savedSize) & savedSize,
+          );
+        }
+        await windowManager.show();
+        await windowManager.focus();
+        if (Pref.playerWindowAlwaysOnTop) {
+          await windowManager.setAlwaysOnTop(true);
+        }
       })
-
       ..addListener(this)
       ..setPreventClose(true);
   }
@@ -123,23 +124,23 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
   void _setupWindowChannel() {
     final _ = const WindowMethodChannel('player_window_channel')
       ..setMethodCallHandler((call) async {
-      switch (call.method) {
-        case 'playVideo':
-          // Note: IPC may pass Map<Object?, Object?>, need to convert properly
-          final rawArgs = call.arguments;
-          if (rawArgs is Map) {
-            final args = Map<String, dynamic>.from(
-              rawArgs.map(
-                (key, value) => MapEntry(key.toString(), value),
-              ),
-            );
-            _navigateToVideo(PlayerWindowArguments.fromJson(args));
-          }
-          return;
-        default:
-          throw MissingPluginException('Not implemented: ${call.method}');
-      }
-    });
+        switch (call.method) {
+          case 'playVideo':
+            // Note: IPC may pass Map<Object?, Object?>, need to convert properly
+            final rawArgs = call.arguments;
+            if (rawArgs is Map) {
+              final args = Map<String, dynamic>.from(
+                rawArgs.map(
+                  (key, value) => MapEntry(key.toString(), value),
+                ),
+              );
+              _navigateToVideo(PlayerWindowArguments.fromJson(args));
+            }
+            return;
+          default:
+            throw MissingPluginException('Not implemented: ${call.method}');
+        }
+      });
   }
 
   void _navigateToVideo(PlayerWindowArguments args) {
@@ -162,6 +163,9 @@ class _PlayerWindowAppState extends State<PlayerWindowApp> with WindowListener {
       if (args.cover != null) 'pic': args.cover,
       'heroTag': 'playerWindow_${args.bvid}',
       if (args.progress != null) 'progress': args.progress,
+      if (args.progressAid != null) 'progressAid': args.progressAid,
+      if (args.progressBvid != null) 'progressBvid': args.progressBvid,
+      if (args.progressCid != null) 'progressCid': args.progressCid,
       ...?args.extraArguments,
     };
     if (Get.currentRoute == '/videoV' &&

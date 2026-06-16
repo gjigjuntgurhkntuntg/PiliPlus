@@ -22,7 +22,8 @@ class PlayerWindowManager {
   /// Known fields that should be extracted to top-level PlayerWindowArguments
   static const _knownFields = {
     'aid', 'bvid', 'cid', 'seasonId', 'epId', 'pgcType',
-    'cover', 'title', 'progress', 'videoType', 'heroTag', 'pic',
+    'cover', 'title', 'progress', 'progressAid', 'progressBvid', 'progressCid',
+    'videoType', 'heroTag', 'pic',
     'roomId', // For live streaming
     'settings', 'extraArguments', 'businessId',
   };
@@ -104,11 +105,13 @@ class PlayerWindowManager {
     // If there's already an extraArguments field, merge it (serialized)
     final existingExtra = json['extraArguments'] as Map<String, dynamic>?;
     if (existingExtra != null) {
-      extraArgs.addAll(Map<String, dynamic>.fromEntries(
-        existingExtra.entries.map(
+      extraArgs.addAll(
+        Map<String, dynamic>.fromEntries(
+          existingExtra.entries.map(
             (e) => MapEntry(e.key.toString(), serializeValue(e.value)),
+          ),
         ),
-      ));
+      );
     }
 
     // Handle videoType being either a String or VideoType enum
@@ -132,6 +135,9 @@ class PlayerWindowManager {
       cover: (json['cover'] ?? json['pic']) as String?,
       title: json['title'] as String?,
       progress: json['progress'] as int?,
+      progressAid: json['progressAid'] as int?,
+      progressBvid: json['progressBvid'] as String?,
+      progressCid: json['progressCid'] as int?,
       videoType: videoTypeStr,
       roomId: json['roomId'] as int?,
       extraArguments: extraArgs.isNotEmpty ? extraArgs : null,

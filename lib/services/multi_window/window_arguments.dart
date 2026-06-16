@@ -61,6 +61,9 @@ class PlayerWindowArguments extends WindowArguments {
     this.cover,
     this.title,
     this.progress,
+    this.progressAid,
+    this.progressBvid,
+    this.progressCid,
     this.videoType = 'ugc',
     this.roomId,
     this.extraArguments,
@@ -105,6 +108,9 @@ class PlayerWindowArguments extends WindowArguments {
       cover: json['cover'] as String?,
       title: json['title'] as String?,
       progress: json['progress'] as int?,
+      progressAid: json['progressAid'] as int?,
+      progressBvid: json['progressBvid'] as String?,
+      progressCid: json['progressCid'] as int?,
       videoType: videoTypeStr,
       roomId: json['roomId'] as int?,
       extraArguments: convertMap(json['extraArguments']),
@@ -121,9 +127,13 @@ class PlayerWindowArguments extends WindowArguments {
   final String? cover;
   final String? title;
   final int? progress;
+  final int? progressAid;
+  final String? progressBvid;
+  final int? progressCid;
   final String videoType;
   final int? roomId;
   final Map<String, dynamic>? extraArguments;
+
   /// Settings snapshot from main window
   final Map<String, dynamic>? settings;
 
@@ -139,6 +149,9 @@ class PlayerWindowArguments extends WindowArguments {
       if (cover != null) 'cover': cover,
       if (title != null) 'title': title,
       if (progress != null) 'progress': progress,
+      if (progressAid != null) 'progressAid': progressAid,
+      if (progressBvid != null) 'progressBvid': progressBvid,
+      if (progressCid != null) 'progressCid': progressCid,
       'videoType': videoType,
       if (roomId != null) 'roomId': roomId,
       if (extraArguments != null) 'extraArguments': extraArguments,

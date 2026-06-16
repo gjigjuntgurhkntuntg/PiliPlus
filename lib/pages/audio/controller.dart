@@ -94,6 +94,7 @@ class AudioController extends GetxController
 
   int? index;
   List<DetailItem>? playlist;
+  final Map<String, int> _partProgress = {};
 
   late double speed = 1.0;
 
@@ -131,6 +132,12 @@ class AudioController extends GetxController
 
   bool get _shouldSyncVideoDetailSideEffects =>
       _hasVideoDetailController && _isAppInForeground;
+
+  int get _currentSubId => (subId.firstOrNull ?? oid).toInt();
+
+  String _progressKey(int aid, int subId) => '$aid:$subId';
+
+  bool _isSinglePart(DetailItem item) => item.parts.length <= 1;
 
   double? _lastVolume;
   late final RxDouble desktopVolume = RxDouble(Pref.desktopVolume);
@@ -370,6 +377,13 @@ class AudioController extends GetxController
         'subId': subId.firstOrNull?.toString(),
       },
     );
+  }
+
+  void _scheduleClearAudioSwitching(int generation) {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (generation != _switchGeneration) return;
+      _clearAudioSwitching(reason: 'media_opened');
+    });
   }
 
   void _resetPlaybackProgressForSwitch() {
@@ -753,12 +767,11 @@ class AudioController extends GetxController
         if (stateDuration > Duration.zero) {
           duration.value = stateDuration;
         }
-        final statePosition = player!.state.position;
-        if (statePosition > Duration.zero) {
-          position.value = statePosition;
+        if (_start case final start? when start > Duration.zero) {
+          position.value = start;
         }
         _start = null;
-        _clearAudioSwitching(reason: 'media_opened');
+        _scheduleClearAudioSwitching(openGeneration);
         initSkip();
         return true;
       } else {
@@ -1370,12 +1383,18 @@ class AudioController extends GetxController
         (item.subId.isNotEmpty ? item.subId : [audioItem.parts.first.subId]);
     itemType = item.itemType;
     _resetPlaybackProgressForSwitch();
-    // 使用列表中的进度信息设置起始播放位置
-    // 优先使用 playlist 中的进度（由 _saveCurrentProgress 更新）
-    // 如果为 0，尝试从 VideoDetailController 的 mediaList 中获取本地进度
-    int progress = audioItem.progress.toInt();
-    if (progress <= 0) {
-      progress = _getProgressFromMediaList(item.oid.toInt());
+    final currentAid = item.oid.toInt();
+    final currentSubId = _currentSubId;
+    final progressKey = _progressKey(currentAid, currentSubId);
+    final savedPartProgress = _partProgress[progressKey];
+    int progress = savedPartProgress ?? 0;
+    if (savedPartProgress == null && progress <= 0) {
+      progress = _getProgressFromMediaList(currentAid, currentSubId);
+    }
+    if (savedPartProgress == null &&
+        progress <= 0 &&
+        _isSinglePart(audioItem)) {
+      progress = audioItem.progress.toInt();
     }
     if (kDebugMode) {
       debugPrint(
@@ -1432,11 +1451,15 @@ class AudioController extends GetxController
   }
 
   /// 从 VideoDetailController 的 mediaList 中获取视频的本地进度（秒）
-  int _getProgressFromMediaList(int aid) {
+  int _getProgressFromMediaList(int aid, int cid) {
     if (_videoDetailController == null) return 0;
     try {
       final mediaList = _videoDetailController!.mediaList;
-      final item = mediaList.firstWhereOrNull((e) => e.aid == aid);
+      final item = mediaList.firstWhereOrNull(
+        (e) =>
+            e.aid == aid &&
+            (e.pages?.any((page) => page.id == cid) ?? e.cid == cid),
+      );
       if (item != null && item.progress != null && item.progress! > 0) {
         return item.progress!;
       }
@@ -1470,7 +1493,7 @@ class AudioController extends GetxController
 
       // 获取听视频当前播放的视频信息
       final currentOid = oid.toInt();
-      final currentCid = (subId.firstOrNull ?? oid).toInt();
+      final currentCid = _currentSubId;
       final currentBvid = IdUtils.av2bv(currentOid);
       final currentDuration = duration.value.inSeconds;
       final progressSeconds = currentPosition.inSeconds;
@@ -1481,9 +1504,14 @@ class AudioController extends GetxController
         );
       }
 
-      // 同步更新 playlist 中当前项的进度，以便在列表中切换时使用最新进度
+      _partProgress[_progressKey(currentOid, currentCid)] = progressSeconds;
+
+      // 单 P 列表项可继续同步 item-level 进度；多 P 由 per-subId map 隔离。
       if (index != null && playlist != null && index! < playlist!.length) {
-        playlist![index!].progress = Int64(progressSeconds);
+        final currentItem = playlist![index!];
+        if (_isSinglePart(currentItem)) {
+          currentItem.progress = Int64(progressSeconds);
+        }
       }
 
       // 使用新的公开方法更新指定视频的进度
@@ -1519,7 +1547,7 @@ class AudioController extends GetxController
 
     try {
       final currentOid = oid.toInt();
-      final currentCid = (subId.firstOrNull ?? oid).toInt();
+      final currentCid = _currentSubId;
       final currentBvid = IdUtils.av2bv(currentOid);
       final currentDuration = duration.value.inSeconds;
 
@@ -1527,8 +1555,13 @@ class AudioController extends GetxController
         return;
       }
 
+      _partProgress[_progressKey(currentOid, currentCid)] = -1;
+
       if (index != null && playlist != null && index! < playlist!.length) {
-        playlist![index!].progress = Int64(currentDuration);
+        final currentItem = playlist![index!];
+        if (_isSinglePart(currentItem)) {
+          currentItem.progress = Int64(currentDuration);
+        }
       }
 
       _videoDetailController!.updateProgressForVideo(

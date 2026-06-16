@@ -119,6 +119,7 @@ class VideoDetailController extends GetxController
   // 当视频切换时设为true，播放器初始化完成后设为false
   bool _isSwitchingVideo = false;
   bool _pendingVideoSwitchProtection = false;
+  bool get isSwitchingVideo => _isSwitchingVideo;
 
   /// tabs相关配置
   late TabController tabCtr;
@@ -1015,7 +1016,11 @@ class VideoDetailController extends GetxController
     final currentVideoQa = this.currentVideoQa.value;
     if (currentVideoQa == null) return;
     _autoPlay.value = true;
-    playedTime = plPlayerController.position;
+    final currentPosition = plPlayerController.position;
+    final shouldReuseProgress =
+        plPlayerController.playerStatus.isPlaying ||
+        plPlayerController.playerStatus.isPaused;
+    playedTime = shouldReuseProgress ? currentPosition : null;
     plPlayerController
       ..isBuffering.value = false
       ..buffered.value = Duration.zero;
@@ -1123,7 +1128,9 @@ class VideoDetailController extends GetxController
       );
     }
 
-    Duration? seek = seekToTime ?? defaultST ?? playedTime;
+    final canReusePlayedTime = !isQuerying && !_isSwitchingVideo;
+    Duration? seek =
+        seekToTime ?? defaultST ?? (canReusePlayedTime ? playedTime : null);
     if (seek == null || seek == Duration.zero) {
       seek = getFirstSegment();
     }
@@ -1209,10 +1216,46 @@ class VideoDetailController extends GetxController
       return;
     }
     currLang.value = language;
-    queryVideoUrl(defaultST: playedTime);
+    queryVideoUrl(defaultST: plPlayerController.position);
   }
 
   Volume? volume;
+
+  bool _isTrustedRouteProgress(dynamic progress) {
+    if (progress is! int) return false;
+
+    final progressAid = args.remove('progressAid');
+    final progressBvid = args.remove('progressBvid');
+    final progressCid = args.remove('progressCid');
+    final hasIdentity =
+        progressAid != null || progressBvid != null || progressCid != null;
+    if (!hasIdentity) return false;
+
+    return (progressAid == null || progressAid == aid) &&
+        (progressBvid == null || progressBvid == bvid) &&
+        (progressCid == null || progressCid == cid.value);
+  }
+
+  bool _shouldUseLastPlayTime() {
+    final lastPlayTime = data.lastPlayTime;
+    if (lastPlayTime == null || lastPlayTime <= 0) return false;
+
+    if (isUgc) {
+      if (data.lastPlayCid case final lastPlayCid? when lastPlayCid > 0) {
+        return lastPlayCid == cid.value;
+      }
+      final pages = Get.isRegistered<UgcIntroController>(tag: heroTag)
+          ? Get.find<UgcIntroController>(
+              tag: heroTag,
+            ).videoDetail.value.pages
+          : null;
+      return pages?.length == 1;
+    }
+
+    // PGC/PUGV 的 current_watch_progress 来自当前 videoUrl 请求响应，
+    // 没有 UGC lastPlayCid 字段，保留当前请求身份边界内的正常续播。
+    return epId != null || seasonId != null || cid.value > 0;
+  }
 
   // 视频链接
   Future<void> queryVideoUrl({
@@ -1294,10 +1337,13 @@ class VideoDetailController extends GetxController
       volume = data.volume;
 
       final progress = args.remove('progress');
-      if (progress != null) {
+      if (progress != null && _isTrustedRouteProgress(progress)) {
         this.defaultST = Duration(milliseconds: progress);
-      } else if (defaultST == null && data.lastPlayTime != null) {
+      } else if (defaultST == null && _shouldUseLastPlayTime()) {
         this.defaultST = Duration(milliseconds: data.lastPlayTime!);
+      }
+      if (this.defaultST == null) {
+        playedTime = null;
       }
 
       if (!isUgc && !fromReset && plPlayerController.enablePgcSkip) {
@@ -1840,6 +1886,7 @@ class VideoDetailController extends GetxController
         progressSeconds,
         videoAid,
         videoBvid,
+        videoCid,
         videoDuration,
       );
 
@@ -1868,16 +1915,28 @@ class VideoDetailController extends GetxController
   }
 
   /// 更新播放列表（mediaList）的进度百分比
+  bool _matchesMediaListItem(
+    MediaListItemModel item,
+    int videoAid,
+    String videoBvid,
+    int videoCid,
+  ) {
+    if (item.aid != videoAid || item.bvid != videoBvid) return false;
+    final pages = item.pages;
+    if (pages == null || pages.isEmpty) return true;
+    return pages.any((page) => page.id == videoCid);
+  }
+
   void _updateMediaListProgress(
     int progressSeconds,
     int videoAid,
     String videoBvid,
+    int videoCid,
     int videoDuration,
   ) {
     try {
-      // 使用 aid 和 bvid 双重匹配确保准确找到目标视频
       final targetItem = mediaList.firstWhereOrNull(
-        (item) => item.aid == videoAid && item.bvid == videoBvid,
+        (item) => _matchesMediaListItem(item, videoAid, videoBvid, videoCid),
       );
 
       if (targetItem != null) {

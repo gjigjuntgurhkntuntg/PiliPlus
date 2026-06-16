@@ -247,6 +247,9 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
       if (args['cover'] != null) 'pic': args['cover'],
       'heroTag': 'playerWindow_${args['bvid'] ?? args['aid']}',
       if (args['progress'] != null) 'progress': args['progress'],
+      if (args['progressAid'] != null) 'progressAid': args['progressAid'],
+      if (args['progressBvid'] != null) 'progressBvid': args['progressBvid'],
+      if (args['progressCid'] != null) 'progressCid': args['progressCid'],
       'sourceType': ?sourceType,
       ...extraArgs,
     };

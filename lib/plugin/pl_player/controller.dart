@@ -160,6 +160,7 @@ class PlPlayerController with BlockConfigMixin {
   int? _pgcType;
   VideoType _videoType = VideoType.ugc;
   int _heartDuration = 0;
+  int _mediaSwitchGeneration = 0;
   int? width;
   int? height;
 
@@ -619,6 +620,32 @@ class PlPlayerController with BlockConfigMixin {
   /// true 期间 stream.error 抛出的事件属于媒体切换噪音，应静默丢弃
   bool _isSwitchingMedia = false;
 
+  _PlaybackIdentitySnapshot get _playbackIdentitySnapshot =>
+      _PlaybackIdentitySnapshot(
+        aid: _aid,
+        bvid: _bvid,
+        cid: cid,
+        epid: _epid,
+        seasonId: _seasonId,
+        pgcType: _pgcType,
+        videoType: _videoType,
+      );
+
+  int _beginMediaSwitch() {
+    _isSwitchingMedia = true;
+    return ++_mediaSwitchGeneration;
+  }
+
+  void _scheduleClearMediaSwitch(int generation) {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (generation != _mediaSwitchGeneration) return;
+      _isSwitchingMedia = false;
+      if (kDebugMode && Platform.isWindows) {
+        debugPrint('[PlPlayerController] media switch flag reset');
+      }
+    });
+  }
+
   bool get _hasPlaybackProgress =>
       position > Duration.zero || buffered.value > Duration.zero;
 
@@ -684,6 +711,8 @@ class PlPlayerController with BlockConfigMixin {
     Volume? volume,
     bool autoFullScreenFlag = false,
   }) async {
+    final switchGeneration = _beginMediaSwitch();
+    var clearSwitchScheduled = false;
     try {
       _processing = true;
       this.isLive = isLive;
@@ -721,7 +750,13 @@ class PlPlayerController with BlockConfigMixin {
         return;
       }
       // 配置Player 音轨、字幕等等
-      await _createVideoController(dataSource, seekTo, volume);
+      await _createVideoController(
+        dataSource,
+        seekTo,
+        volume,
+        switchGeneration,
+      );
+      clearSwitchScheduled = true;
 
       if (_playerCount == 0) {
         _removeListeners();
@@ -753,6 +788,9 @@ class PlPlayerController with BlockConfigMixin {
         debugPrint('plPlayer err:  $err');
       }
     } finally {
+      if (!clearSwitchScheduled) {
+        _scheduleClearMediaSwitch(switchGeneration);
+      }
       _processing = false;
     }
   }
@@ -873,6 +911,7 @@ class PlPlayerController with BlockConfigMixin {
     DataSource dataSource,
     Duration? seekTo,
     Volume? volume,
+    int switchGeneration,
   ) async {
     isBuffering.value = false;
     buffered.value = Duration.zero;
@@ -966,7 +1005,6 @@ class PlPlayerController with BlockConfigMixin {
       }
     }
 
-    _isSwitchingMedia = true;
     try {
       if (kDebugMode && Platform.isWindows) {
         debugPrint(
@@ -983,12 +1021,7 @@ class PlPlayerController with BlockConfigMixin {
       );
     } finally {
       // mpv 在 open 完成后可能还会短暂发出旧 stream 的 error 事件，延迟重置
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _isSwitchingMedia = false;
-        if (kDebugMode && Platform.isWindows) {
-          debugPrint('[PlPlayerController] media switch flag reset');
-        }
-      });
+      _scheduleClearMediaSwitch(switchGeneration);
     }
   }
 
@@ -1044,20 +1077,18 @@ class PlPlayerController with BlockConfigMixin {
             : audioSource.replaceAll(':', '\\:');
       }
     }
-    _isSwitchingMedia = true;
+    final switchGeneration = _beginMediaSwitch();
     return _videoPlayerController!
         .open(
-        Media(
-          dataSource.videoSource,
-          start: position,
-          extras: audioUri == null ? null : {'audio-files': '"$audioUri"'},
-        ),
-        play: true,
-      )
+          Media(
+            dataSource.videoSource,
+            start: position,
+            extras: audioUri == null ? null : {'audio-files': '"$audioUri"'},
+          ),
+          play: true,
+        )
         .whenComplete(() {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            _isSwitchingMedia = false;
-          });
+          _scheduleClearMediaSwitch(switchGeneration);
         });
   }
 
@@ -1125,22 +1156,35 @@ class PlPlayerController with BlockConfigMixin {
         }
       }),
       stream.completed.listen((event) {
-        if (event) {
-          if (kDebugMode) {
-            debugPrint('PlPlayerController: 播放完成，准备切换下一个');
-          }
-          playerStatus.value = PlayerStatus.completed;
-
-          /// 触发回调事件
-          for (final element in _statusListeners) {
-            element(PlayerStatus.completed);
-          }
-        } else {
-          // playerStatus.value = PlayerStatus.playing;
+        if (!event || _isSwitchingMedia) return;
+        final completedIdentity = _playbackIdentitySnapshot;
+        final completedPosition = position;
+        final completedDuration = duration.value;
+        if (kDebugMode) {
+          debugPrint('PlPlayerController: 播放完成，准备切换下一个');
         }
-        makeHeartBeat(positionSeconds.value, type: HeartBeatType.completed);
+        playerStatus.value = PlayerStatus.completed;
+        makeHeartBeat(
+          completedPosition.inSeconds,
+          type: HeartBeatType.completed,
+          aid: completedIdentity.aid,
+          bvid: completedIdentity.bvid,
+          cid: completedIdentity.cid,
+          epid: completedIdentity.epid,
+          seasonId: completedIdentity.seasonId,
+          pgcType: completedIdentity.pgcType,
+          videoType: completedIdentity.videoType,
+          completedPosition: completedPosition,
+          completedDuration: completedDuration,
+        );
+
+        /// 触发回调事件
+        for (final element in _statusListeners) {
+          element(PlayerStatus.completed);
+        }
       }),
       stream.position.listen((event) {
+        if (_isSwitchingMedia) return;
         position = event;
         updatePositionSecond();
         if (!isSliderMoving.value) {
@@ -1152,9 +1196,7 @@ class PlPlayerController with BlockConfigMixin {
         for (final element in _positionListeners) {
           element(event);
         }
-        if (!_isSwitchingMedia) {
-          makeHeartBeat(event.inSeconds);
-        }
+        makeHeartBeat(event.inSeconds);
       }),
       stream.duration.listen((Duration event) {
         duration.value = event;
@@ -1711,6 +1753,8 @@ class PlPlayerController with BlockConfigMixin {
     dynamic seasonId,
     dynamic pgcType,
     VideoType? videoType,
+    Duration? completedPosition,
+    Duration? completedDuration,
   }) {
     if (isLive ||
         !enableHeart ||
@@ -1744,8 +1788,10 @@ class PlPlayerController with BlockConfigMixin {
           return send();
         }
       case .completed:
+        final eventDuration = completedDuration ?? duration.value;
+        final eventPosition = completedPosition ?? position;
         if (playerStatus.isCompleted &&
-            (duration.value - position).inMilliseconds <= 1000) {
+            (eventDuration - eventPosition).inMilliseconds <= 1000) {
           progress = -1;
         }
         return send();
@@ -1992,4 +2038,24 @@ class PlPlayerController with BlockConfigMixin {
     }
     Get.back();
   }
+}
+
+class _PlaybackIdentitySnapshot {
+  const _PlaybackIdentitySnapshot({
+    required this.aid,
+    required this.bvid,
+    required this.cid,
+    required this.epid,
+    required this.seasonId,
+    required this.pgcType,
+    required this.videoType,
+  });
+
+  final dynamic aid;
+  final dynamic bvid;
+  final dynamic cid;
+  final dynamic epid;
+  final dynamic seasonId;
+  final dynamic pgcType;
+  final VideoType videoType;
 }
