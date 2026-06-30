@@ -318,7 +318,11 @@ class PgcIntroController extends CommonIntroController {
   }
 
   // 修改分P或番剧分集
-  Future<bool> onChangeEpisode(BaseEpisodeItem episode) async {
+  Future<bool> onChangeEpisode(
+    BaseEpisodeItem episode, {
+    bool fromAudioPage = false,
+    Duration? audioPosition,
+  }) async {
     try {
       final int epId = episode.epId ?? episode.id!;
       final String bvid = episode.bvid ?? this.bvid;
@@ -339,11 +343,13 @@ class PgcIntroController extends CommonIntroController {
         text: '正在切换剧集…',
       );
 
+      videoDetailCtr.plPlayerController.pause();
+      if (!fromAudioPage) {
+        videoDetailCtr
+          ..saveProgressBeforeChange()
+          ..makeHeartBeat();
+      }
       videoDetailCtr
-        ..plPlayerController.pause()
-        // 切换前先保存当前视频的进度（特别是新窗口模式）
-        ..saveProgressBeforeChange()
-        ..makeHeartBeat()
         ..onReset()
         ..epId = epId
         ..bvid = bvid
@@ -351,7 +357,19 @@ class PgcIntroController extends CommonIntroController {
         ..cid.value = cid;
 
       // 重要：在后台/锁屏场景下，必须等待 queryVideoUrl 完成才能继续
-      await videoDetailCtr.queryVideoUrl();
+      final Duration? progressToPass =
+          fromAudioPage &&
+              audioPosition != null &&
+              audioPosition > Duration.zero
+          ? audioPosition
+          : null;
+      if (progressToPass != null) {
+        videoDetailCtr
+          ..playedTime = progressToPass
+          ..defaultST = progressToPass;
+      }
+
+      await videoDetailCtr.queryVideoUrl(defaultST: progressToPass);
 
       if (cover != null && cover.isNotEmpty) {
         videoDetailCtr.cover.value = cover;

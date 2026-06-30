@@ -12,6 +12,7 @@ import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
+import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart' as pgc;
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
@@ -737,7 +738,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       ..restoreListControlMode();
 
     // 同步听视频返回时的状态
-    _syncAudioPageState();
+    final didSwitchFromAudio = _syncAudioPageState();
 
     if (mounted &&
         Platform.isAndroid &&
@@ -760,19 +761,30 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     () async {
       final syncedPosition = _pendingAudioSyncPosition;
       _pendingAudioSyncPosition = null;
-      if (videoDetailController.autoPlay) {
-        await videoDetailController.playerInit(
-          autoplay: videoDetailController.playerStatus?.isPlaying ?? false,
-          localEntry: videoDetailController.currentLocalEntry,
-          seekToTime: syncedPosition,
-        );
-      } else if (videoDetailController.plPlayerController.preInitPlayer &&
-          !videoDetailController.isQuerying &&
-          videoDetailController.videoState.value is! Error) {
-        await videoDetailController.playerInit(
-          localEntry: videoDetailController.currentLocalEntry,
-          seekToTime: syncedPosition,
-        );
+      if (!didSwitchFromAudio) {
+        if (videoDetailController.autoPlay) {
+          await videoDetailController.playerInit(
+            autoplay: videoDetailController.playerStatus?.isPlaying ?? false,
+            localEntry: videoDetailController.currentLocalEntry,
+            seekToTime: syncedPosition,
+          );
+        } else if (videoDetailController.plPlayerController.preInitPlayer &&
+            !videoDetailController.isQuerying &&
+            videoDetailController.videoState.value is! Error) {
+          await videoDetailController.playerInit(
+            localEntry: videoDetailController.currentLocalEntry,
+            seekToTime: syncedPosition,
+          );
+        } else if (syncedPosition case final position?
+            when position > Duration.zero) {
+          videoDetailController
+            ..playedTime = position
+            ..defaultST = position;
+          if (videoDetailController.plPlayerController.videoPlayerController !=
+              null) {
+            await videoDetailController.seekTo(position, isSeek: false);
+          }
+        }
       }
       if (!mounted || !isShowing) return;
       _bindPlayerListeners();
@@ -782,11 +794,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   }
 
   /// 同步听视频页面的状态
-  void _syncAudioPageState() {
+  bool _syncAudioPageState() {
     try {
       // 检查是否有 AudioController 实例
       if (!Get.isRegistered<AudioController>(tag: heroTag)) {
-        return;
+        return false;
       }
 
       final audioController = Get.find<AudioController>(tag: heroTag);
@@ -799,14 +811,14 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         if (kDebugMode) {
           debugPrint('从听视频返回时音频仍在切换中，跳过视频身份和进度同步');
         }
-        return;
+        return false;
       }
 
       // 如果听视频切换了视频，需要同步到视频页
       final audioOid = audioController.oid;
       final audioCid = audioController.subId.firstOrNull?.toInt();
       final currentBvid = IdUtils.av2bv(audioOid.toInt());
-      final audioPosition = audioController.position.value;
+      final audioPosition = audioController.syncPosition;
       final currentCid = videoDetailController.cid.value;
       final hasSwitchedBvid = currentBvid != videoDetailController.bvid;
       final hasSwitchedPart =
@@ -883,6 +895,34 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               fromAudioPage: true,
               audioPosition: audioPosition,
             );
+            return true;
+          }
+        } else {
+          pgc.EpisodeItem? targetItem;
+          final audioAid = audioOid.toInt();
+
+          bool matchesAudioState(pgc.EpisodeItem item) =>
+              item.cid == audioCid ||
+              item.aid == audioAid ||
+              item.bvid == currentBvid;
+
+          final episodes = pgcIntroController.pgcItem.episodes;
+          if (episodes != null && episodes.isNotEmpty) {
+            for (final item in episodes) {
+              if (matchesAudioState(item)) {
+                targetItem = item;
+                break;
+              }
+            }
+          }
+
+          if (targetItem != null) {
+            pgcIntroController.onChangeEpisode(
+              targetItem,
+              fromAudioPage: true,
+              audioPosition: audioPosition,
+            );
+            return true;
           }
         }
       } else {
@@ -898,10 +938,12 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           }
         }
       }
+      return false;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('同步听视频状态失败: $e');
       }
+      return false;
     }
   }
 
