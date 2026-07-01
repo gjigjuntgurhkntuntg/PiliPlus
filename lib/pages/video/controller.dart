@@ -204,6 +204,7 @@ class VideoDetailController extends GetxController
     required int cid,
     required int? epId,
     required int? seasonId,
+    bool clearSwitching = true,
     bool? switchProtectionSuccess,
     String? switchProtectionReason,
   }) async {
@@ -217,7 +218,9 @@ class VideoDetailController extends GetxController
       return;
     }
     isQuerying = false;
-    _isSwitchingVideo = false;
+    if (clearSwitching) {
+      _isSwitchingVideo = false;
+    }
     if (switchProtectionReason != null && _pendingVideoSwitchProtection) {
       await finishVideoSwitchProtection(
         success: switchProtectionSuccess ?? false,
@@ -1332,13 +1335,18 @@ class VideoDetailController extends GetxController
     bool fromReset = false,
     bool autoFullScreenFlag = false,
     bool fromSwitch = false,
+    bool Function()? isCurrentSwitch,
   }) async {
     if (isFileSource) {
+      if (isCurrentSwitch?.call() == false) return;
       // 离线播放也支持空降助手（网络不可用时会静默失败）
       if (blockConfig.enableSponsorBlock && isBlock && !fromReset) {
         querySponsorBlock(bvid: bvid, cid: cid.value);
       }
-      return _initPlayerIfNeeded(autoFullScreenFlag: autoFullScreenFlag);
+      return _initPlayerIfNeeded(
+        autoFullScreenFlag: autoFullScreenFlag,
+        isCurrentQuery: isCurrentSwitch,
+      );
     }
 
     if (isQuerying && !fromSwitch) {
@@ -1349,17 +1357,21 @@ class VideoDetailController extends GetxController
     final requestCid = cid.value;
     final requestEpId = epId;
     final requestSeasonId = seasonId;
-    bool isCurrentQuery() => _isCurrentVideoUrlQuery(
-      generation: queryGeneration,
-      bvid: requestBvid,
-      cid: requestCid,
-      epId: requestEpId,
-      seasonId: requestSeasonId,
-    );
+    bool isCurrentVideoUrlQuery() =>
+        _isCurrentVideoUrlQuery(
+          generation: queryGeneration,
+          bvid: requestBvid,
+          cid: requestCid,
+          epId: requestEpId,
+          seasonId: requestSeasonId,
+        );
+    bool isCurrentQuery() =>
+        isCurrentVideoUrlQuery() && (isCurrentSwitch?.call() ?? true);
     Future<void> finishQuery({
       bool? switchProtectionSuccess,
       String? switchProtectionReason,
     }) {
+      if (!isCurrentQuery()) return Future<void>.value();
       return _finishVideoUrlQuery(
         generation: queryGeneration,
         bvid: requestBvid,
@@ -1369,6 +1381,19 @@ class VideoDetailController extends GetxController
         switchProtectionSuccess: switchProtectionSuccess,
         switchProtectionReason: switchProtectionReason,
       );
+    }
+    Future<void> finishStaleSwitchQuery() {
+      if (isCurrentVideoUrlQuery() && isCurrentSwitch?.call() == false) {
+        return _finishVideoUrlQuery(
+          generation: queryGeneration,
+          bvid: requestBvid,
+          cid: requestCid,
+          epId: requestEpId,
+          seasonId: requestSeasonId,
+          clearSwitching: false,
+        );
+      }
+      return Future<void>.value();
     }
 
     isQuerying = true;
@@ -1396,7 +1421,10 @@ class VideoDetailController extends GetxController
       }
 
       localEntry ??= await _findLocalCompletedEntryByCid(requestCid);
-      if (!isCurrentQuery()) return;
+      if (!isCurrentQuery()) {
+        await finishStaleSwitchQuery();
+        return;
+      }
     }
     // 保存找到的本地缓存条目，以便从其他页面返回时能继续使用
     currentLocalEntry = localEntry;
@@ -1406,7 +1434,10 @@ class VideoDetailController extends GetxController
     }
     if (plPlayerController.cacheVideoQa == null) {
       final isWiFi = await ConnectivityUtils.isWiFi;
-      if (!isCurrentQuery()) return;
+      if (!isCurrentQuery()) {
+        await finishStaleSwitchQuery();
+        return;
+      }
       plPlayerController
         ..cacheVideoQa = isWiFi
             ? Pref.defaultVideoQa
@@ -1426,7 +1457,10 @@ class VideoDetailController extends GetxController
       language: currLang.value,
       voiceBalance: plPlayerController.enableAudioNormalization,
     );
-    if (!isCurrentQuery()) return;
+    if (!isCurrentQuery()) {
+      await finishStaleSwitchQuery();
+      return;
+    }
 
     if (result case Success(:final response)) {
       data = response;
@@ -1480,7 +1514,10 @@ class VideoDetailController extends GetxController
           autoFullScreenFlag: autoFullScreenFlag,
           isCurrentQuery: isCurrentQuery,
         );
-        if (!isCurrentQuery()) return;
+        if (!isCurrentQuery()) {
+          await finishStaleSwitchQuery();
+          return;
+        }
         await finishQuery(
           switchProtectionSuccess: true,
           switchProtectionReason: 'player_init_completed',
@@ -1599,7 +1636,10 @@ class VideoDetailController extends GetxController
         autoFullScreenFlag: autoFullScreenFlag,
         isCurrentQuery: isCurrentQuery,
       );
-      if (!isCurrentQuery()) return;
+      if (!isCurrentQuery()) {
+        await finishStaleSwitchQuery();
+        return;
+      }
       await finishQuery(
         switchProtectionSuccess: true,
         switchProtectionReason: 'player_init_completed',
@@ -1613,7 +1653,10 @@ class VideoDetailController extends GetxController
           autoFullScreenFlag: autoFullScreenFlag,
           isCurrentQuery: isCurrentQuery,
         );
-        if (!isCurrentQuery()) return;
+        if (!isCurrentQuery()) {
+          await finishStaleSwitchQuery();
+          return;
+        }
         await finishQuery(
           switchProtectionSuccess: true,
           switchProtectionReason: 'player_init_completed',

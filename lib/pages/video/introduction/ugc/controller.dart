@@ -510,6 +510,26 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     final changeGeneration = ++_changeEpisodeGeneration;
     bool isCurrentChange() =>
         !isClosed && changeGeneration == _changeEpisodeGeneration;
+    Future<void> finishOwnedSwitchProtection({
+      required bool success,
+      required String reason,
+    }) async {
+      if (_switchProtectionChangeGeneration != changeGeneration) {
+        return;
+      }
+      _switchProtectionChangeGeneration = null;
+      await videoDetailCtr.finishVideoSwitchProtection(
+        success: success,
+        reason: reason,
+      );
+    }
+
+    void clearOwnedSwitchProtection() {
+      if (_switchProtectionChangeGeneration == changeGeneration) {
+        _switchProtectionChangeGeneration = null;
+      }
+    }
+
     try {
       final String bvid = episode.bvid ?? this.bvid;
       final int aid = episode.aid ?? IdUtils.bv2av(bvid);
@@ -548,8 +568,6 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
       }
 
-      videoDetailCtr.plPlayerController.pause();
-
       final protectsSwitch = !videoDetailCtr.isAppInForeground;
       if (protectsSwitch) {
         _switchProtectionChangeGeneration = changeGeneration;
@@ -559,16 +577,14 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         text: '正在切换视频…',
       );
       if (!isCurrentChange()) {
-        if (protectsSwitch &&
-            _switchProtectionChangeGeneration == changeGeneration) {
-          _switchProtectionChangeGeneration = null;
-          await videoDetailCtr.finishVideoSwitchProtection(
-            success: false,
-            reason: 'ugc_switch_stale',
-          );
-        }
+        await finishOwnedSwitchProtection(
+          success: false,
+          reason: 'ugc_switch_stale',
+        );
         return false;
       }
+
+      videoDetailCtr.plPlayerController.pause();
 
       // 从听视频页返回时，进度已经在听视频切换时保存过了，不需要再保存
       if (!fromAudioPage) {
@@ -602,10 +618,16 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       await videoDetailCtr.queryVideoUrl(
         defaultST: progressToPass,
         fromSwitch: true,
+        isCurrentSwitch: isCurrentChange,
       );
       if (!isCurrentChange()) {
+        await finishOwnedSwitchProtection(
+          success: false,
+          reason: 'ugc_switch_stale',
+        );
         return false;
       }
+      clearOwnedSwitchProtection();
       if (videoDetailCtr.bvid != bvid || videoDetailCtr.cid.value != cid) {
         return false;
       }
@@ -666,7 +688,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       queryOnlineTotal();
       return true;
     } catch (e, s) {
-      await videoDetailCtr.finishVideoSwitchProtection(
+      await finishOwnedSwitchProtection(
         success: false,
         reason: 'ugc_switch_failed',
       );

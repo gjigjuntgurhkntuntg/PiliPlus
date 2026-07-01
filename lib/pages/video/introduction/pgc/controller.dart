@@ -328,6 +328,26 @@ class PgcIntroController extends CommonIntroController {
     final changeGeneration = ++_changeEpisodeGeneration;
     bool isCurrentChange() =>
         !isClosed && changeGeneration == _changeEpisodeGeneration;
+    Future<void> finishOwnedSwitchProtection({
+      required bool success,
+      required String reason,
+    }) async {
+      if (_switchProtectionChangeGeneration != changeGeneration) {
+        return;
+      }
+      _switchProtectionChangeGeneration = null;
+      await videoDetailCtr.finishVideoSwitchProtection(
+        success: success,
+        reason: reason,
+      );
+    }
+
+    void clearOwnedSwitchProtection() {
+      if (_switchProtectionChangeGeneration == changeGeneration) {
+        _switchProtectionChangeGeneration = null;
+      }
+    }
+
     try {
       final int epId = episode.epId ?? episode.id!;
       final String bvid = episode.bvid ?? this.bvid;
@@ -344,10 +364,6 @@ class PgcIntroController extends CommonIntroController {
       }
       final String? cover = episode.cover;
 
-      // 重新获取视频资源
-      this.epId = epId;
-      this.bvid = bvid;
-
       final protectsSwitch = !videoDetailCtr.isAppInForeground;
       if (protectsSwitch) {
         _switchProtectionChangeGeneration = changeGeneration;
@@ -357,16 +373,16 @@ class PgcIntroController extends CommonIntroController {
         text: '正在切换剧集…',
       );
       if (!isCurrentChange()) {
-        if (protectsSwitch &&
-            _switchProtectionChangeGeneration == changeGeneration) {
-          _switchProtectionChangeGeneration = null;
-          await videoDetailCtr.finishVideoSwitchProtection(
-            success: false,
-            reason: 'pgc_switch_stale',
-          );
-        }
+        await finishOwnedSwitchProtection(
+          success: false,
+          reason: 'pgc_switch_stale',
+        );
         return false;
       }
+
+      // 重新获取视频资源
+      this.epId = epId;
+      this.bvid = bvid;
 
       videoDetailCtr.plPlayerController.pause();
       if (!fromAudioPage) {
@@ -397,10 +413,16 @@ class PgcIntroController extends CommonIntroController {
       await videoDetailCtr.queryVideoUrl(
         defaultST: progressToPass,
         fromSwitch: true,
+        isCurrentSwitch: isCurrentChange,
       );
       if (!isCurrentChange()) {
+        await finishOwnedSwitchProtection(
+          success: false,
+          reason: 'pgc_switch_stale',
+        );
         return false;
       }
+      clearOwnedSwitchProtection();
       if (videoDetailCtr.epId != epId ||
           videoDetailCtr.bvid != bvid ||
           videoDetailCtr.cid.value != cid) {
@@ -434,7 +456,7 @@ class PgcIntroController extends CommonIntroController {
       queryVideoIntro(episode as EpisodeItem);
       return true;
     } catch (e, s) {
-      await videoDetailCtr.finishVideoSwitchProtection(
+      await finishOwnedSwitchProtection(
         success: false,
         reason: 'pgc_switch_failed',
       );
