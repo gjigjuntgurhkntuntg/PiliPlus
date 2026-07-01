@@ -35,6 +35,8 @@ import 'package:get/get.dart';
 class PgcIntroController extends CommonIntroController {
   int? seasonId;
   int? epId;
+  int _changeEpisodeGeneration = 0;
+  int? _switchProtectionChangeGeneration;
 
   String get pgcType => pgcItem.type == 1 || pgcItem.type == 4
       ? '追番'
@@ -323,12 +325,20 @@ class PgcIntroController extends CommonIntroController {
     bool fromAudioPage = false,
     Duration? audioPosition,
   }) async {
+    final changeGeneration = ++_changeEpisodeGeneration;
+    bool isCurrentChange() =>
+        !isClosed && changeGeneration == _changeEpisodeGeneration;
     try {
       final int epId = episode.epId ?? episode.id!;
       final String bvid = episode.bvid ?? this.bvid;
       final int aid = episode.aid ?? IdUtils.bv2av(bvid);
-      final int? cid =
-          episode.cid ?? await SearchHttp.ab2c(aid: aid, bvid: bvid);
+      int? cid = episode.cid;
+      if (cid == null) {
+        cid = await SearchHttp.ab2c(aid: aid, bvid: bvid);
+        if (!isCurrentChange()) {
+          return false;
+        }
+      }
       if (cid == null) {
         return false;
       }
@@ -338,10 +348,25 @@ class PgcIntroController extends CommonIntroController {
       this.epId = epId;
       this.bvid = bvid;
 
+      final protectsSwitch = !videoDetailCtr.isAppInForeground;
+      if (protectsSwitch) {
+        _switchProtectionChangeGeneration = changeGeneration;
+      }
       await videoDetailCtr.ensureVideoSwitchProtection(
         reason: 'pgc_switch',
         text: '正在切换剧集…',
       );
+      if (!isCurrentChange()) {
+        if (protectsSwitch &&
+            _switchProtectionChangeGeneration == changeGeneration) {
+          _switchProtectionChangeGeneration = null;
+          await videoDetailCtr.finishVideoSwitchProtection(
+            success: false,
+            reason: 'pgc_switch_stale',
+          );
+        }
+        return false;
+      }
 
       videoDetailCtr.plPlayerController.pause();
       if (!fromAudioPage) {
@@ -373,6 +398,9 @@ class PgcIntroController extends CommonIntroController {
         defaultST: progressToPass,
         fromSwitch: true,
       );
+      if (!isCurrentChange()) {
+        return false;
+      }
       if (videoDetailCtr.epId != epId ||
           videoDetailCtr.bvid != bvid ||
           videoDetailCtr.cid.value != cid) {

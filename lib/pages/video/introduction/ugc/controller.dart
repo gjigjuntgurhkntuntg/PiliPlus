@@ -49,6 +49,8 @@ import 'package:get/get.dart';
 
 class UgcIntroController extends CommonIntroController with ReloadMixin {
   late ExpandableController expandableCtr;
+  int _changeEpisodeGeneration = 0;
+  int? _switchProtectionChangeGeneration;
 
   final RxBool status = true.obs;
 
@@ -505,14 +507,20 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     bool fromAudioPage = false, // 从听视频页返回时为true，跳过保存进度
     Duration? audioPosition, // 从听视频页返回时的播放进度
   }) async {
+    final changeGeneration = ++_changeEpisodeGeneration;
+    bool isCurrentChange() =>
+        !isClosed && changeGeneration == _changeEpisodeGeneration;
     try {
       final String bvid = episode.bvid ?? this.bvid;
       final int aid = episode.aid ?? IdUtils.bv2av(bvid);
       int? cid = episode.cid;
       Dimension? dimension;
       if (cid == null) {
-        if (await SearchHttp.ab2cWithDimension(aid: aid, bvid: bvid)
-            case final res?) {
+        final res = await SearchHttp.ab2cWithDimension(aid: aid, bvid: bvid);
+        if (!isCurrentChange()) {
+          return false;
+        }
+        if (res case final res?) {
           cid = res.cid;
           dimension = res.dimension;
         }
@@ -542,10 +550,25 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
       videoDetailCtr.plPlayerController.pause();
 
+      final protectsSwitch = !videoDetailCtr.isAppInForeground;
+      if (protectsSwitch) {
+        _switchProtectionChangeGeneration = changeGeneration;
+      }
       await videoDetailCtr.ensureVideoSwitchProtection(
         reason: 'ugc_switch',
         text: '正在切换视频…',
       );
+      if (!isCurrentChange()) {
+        if (protectsSwitch &&
+            _switchProtectionChangeGeneration == changeGeneration) {
+          _switchProtectionChangeGeneration = null;
+          await videoDetailCtr.finishVideoSwitchProtection(
+            success: false,
+            reason: 'ugc_switch_stale',
+          );
+        }
+        return false;
+      }
 
       // 从听视频页返回时，进度已经在听视频切换时保存过了，不需要再保存
       if (!fromAudioPage) {
@@ -580,6 +603,9 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         defaultST: progressToPass,
         fromSwitch: true,
       );
+      if (!isCurrentChange()) {
+        return false;
+      }
       if (videoDetailCtr.bvid != bvid || videoDetailCtr.cid.value != cid) {
         return false;
       }
