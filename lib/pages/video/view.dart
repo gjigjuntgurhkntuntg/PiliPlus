@@ -826,9 +826,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           audioCid != null &&
           audioCid != currentCid;
       final shouldSwitchEpisode = hasSwitchedBvid || hasSwitchedPart;
-      _pendingAudioSyncPosition = audioPosition > Duration.zero
-          ? audioPosition
-          : null;
 
       if (shouldSwitchEpisode) {
         if (kDebugMode) {
@@ -927,6 +924,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         }
       } else {
         // 同一个视频，只需同步进度
+        _pendingAudioSyncPosition = audioPosition > Duration.zero
+            ? audioPosition
+            : null;
         if (audioPosition > Duration.zero) {
           videoDetailController.playedTime = audioPosition;
           videoDetailController.defaultST = audioPosition;

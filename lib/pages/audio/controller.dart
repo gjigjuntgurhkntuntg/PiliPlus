@@ -273,6 +273,7 @@ class AudioController extends GetxController
   }
 
   Future<void>? onSeek(Duration duration) {
+    _audioSwitchZeroPositionGuardGeneration = null;
     _cancelPendingCompleted(reason: 'seek');
     if (_pendingSwitchProtection && !_isSwitchingAudio) {
       unawaited(_finishSwitchProtection(success: false, reason: 'seek'));
@@ -1197,6 +1198,9 @@ class AudioController extends GetxController
         if (isDragging) return;
         if (_isSwitchingAudio && !_audioSwitchOpenReady) return;
         if (_shouldIgnoreAudioSwitchZeroPosition(position)) return;
+        if (position > Duration.zero) {
+          _audioSwitchZeroPositionGuardGeneration = null;
+        }
         final shouldUpdatePosition =
             position.inSeconds != this.position.value.inSeconds ||
             (this.position.value == Duration.zero && position > Duration.zero);

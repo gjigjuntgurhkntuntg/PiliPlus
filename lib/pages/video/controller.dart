@@ -1272,6 +1272,15 @@ class VideoDetailController extends GetxController
     }
 
     if (isQuerying) {
+      if (_isSwitchingVideo) {
+        _isSwitchingVideo = false;
+      }
+      if (_pendingVideoSwitchProtection) {
+        await finishVideoSwitchProtection(
+          success: false,
+          reason: 'query_already_running',
+        );
+      }
       return;
     }
     isQuerying = true;
