@@ -119,6 +119,8 @@ class VideoDetailController extends GetxController
   // 当视频切换时设为true，播放器初始化完成后设为false
   bool _isSwitchingVideo = false;
   bool _pendingVideoSwitchProtection = false;
+  int _videoUrlQueryGeneration = 0;
+  Future<void> _playerInitQueue = Future<void>.value();
   bool get isSwitchingVideo => _isSwitchingVideo;
 
   /// tabs相关配置
@@ -179,6 +181,55 @@ class VideoDetailController extends GetxController
     if (kDebugMode) {
       debugPrint('🎬 结束视频切换保护: reason=$reason, success=$success');
     }
+  }
+
+  bool _isCurrentVideoUrlQuery({
+    required int generation,
+    required String bvid,
+    required int cid,
+    required int? epId,
+    required int? seasonId,
+  }) {
+    return !isClosed &&
+        generation == _videoUrlQueryGeneration &&
+        this.bvid == bvid &&
+        this.cid.value == cid &&
+        this.epId == epId &&
+        this.seasonId == seasonId;
+  }
+
+  Future<void> _finishVideoUrlQuery({
+    required int generation,
+    required String bvid,
+    required int cid,
+    required int? epId,
+    required int? seasonId,
+    bool? switchProtectionSuccess,
+    String? switchProtectionReason,
+  }) async {
+    if (!_isCurrentVideoUrlQuery(
+      generation: generation,
+      bvid: bvid,
+      cid: cid,
+      epId: epId,
+      seasonId: seasonId,
+    )) {
+      return;
+    }
+    isQuerying = false;
+    _isSwitchingVideo = false;
+    if (switchProtectionReason != null && _pendingVideoSwitchProtection) {
+      await finishVideoSwitchProtection(
+        success: switchProtectionSuccess ?? false,
+        reason: switchProtectionReason,
+      );
+    }
+  }
+
+  Future<void> _queuePlayerInit(Future<void> Function() action) {
+    final run = _playerInitQueue.then((_) => action());
+    _playerInitQueue = run.catchError((_) {});
+    return run;
   }
 
   bool get removeSafeArea => plPlayerController.removeSafeArea;
@@ -1047,6 +1098,7 @@ class VideoDetailController extends GetxController
   Future<void>? _initPlayerIfNeeded({
     BiliDownloadEntryInfo? localEntry,
     bool autoFullScreenFlag = false,
+    bool Function()? isCurrentQuery,
   }) {
     // 后台播放模式下，无需检查 widget mounted 状态
     final isBackgroundPlayEnabled =
@@ -1061,6 +1113,7 @@ class VideoDetailController extends GetxController
       return playerInit(
         localEntry: localEntry,
         autoFullScreenFlag: autoFullScreenFlag && _autoPlay.value,
+        isCurrentQuery: isCurrentQuery,
       );
     }
     return null;
@@ -1075,6 +1128,7 @@ class VideoDetailController extends GetxController
     Volume? volume,
     BiliDownloadEntryInfo? localEntry,
     bool autoFullScreenFlag = false,
+    bool Function()? isCurrentQuery,
   }) async {
     final onlyPlayAudio = plPlayerController.onlyPlayAudio.value;
 
@@ -1134,47 +1188,53 @@ class VideoDetailController extends GetxController
     if (seek == null || seek == Duration.zero) {
       seek = getFirstSegment();
     }
-    await plPlayerController.setDataSource(
-      source,
-      seekTo: seek,
-      duration:
-          duration ??
-          (effectiveLocalEntry != null
-              ? Duration(milliseconds: effectiveLocalEntry.totalTimeMilli)
-              : (data.timeLength == null
-                    ? null
-                    : Duration(milliseconds: data.timeLength!))),
-      isVertical: isVertical.value,
-      aid: aid,
-      bvid: bvid,
-      cid: cid.value,
-      autoplay: autoplay ?? _autoPlay.value,
-      epid: isUgc ? null : epId,
-      seasonId: isUgc ? null : seasonId,
-      pgcType: isUgc ? null : pgcType,
-      videoType: videoType,
-      onInit: () {
-        videoState.value = true;
-        setSubtitle(vttSubtitlesIndex.value);
-        // 离线视频：监听视频尺寸变化来更新竖屏状态
-        // 因为此时视频尺寸可能还未解码完成，所以需要通过流监听
-        if (source is FileSource) {
-          _listenVideoSizeForVerticalState();
-        }
-      },
-      width: playFromLocal
-          ? (effectiveLocalEntry?.ep?.width ??
-                effectiveLocalEntry?.pageData?.width ??
-                firstVideo.width)
-          : firstVideo.width,
-      height: playFromLocal
-          ? (effectiveLocalEntry?.ep?.height ??
-                effectiveLocalEntry?.pageData?.height ??
-                firstVideo.height)
-          : firstVideo.height,
-      volume: volume ?? this.volume,
-      autoFullScreenFlag: autoFullScreenFlag,
-    );
+    if (isCurrentQuery?.call() == false) return;
+    await _queuePlayerInit(() async {
+      if (isCurrentQuery?.call() == false) return;
+      await plPlayerController.setDataSource(
+        source,
+        seekTo: seek,
+        duration:
+            duration ??
+            (effectiveLocalEntry != null
+                ? Duration(milliseconds: effectiveLocalEntry.totalTimeMilli)
+                : (data.timeLength == null
+                      ? null
+                      : Duration(milliseconds: data.timeLength!))),
+        isVertical: isVertical.value,
+        aid: aid,
+        bvid: bvid,
+        cid: cid.value,
+        autoplay: autoplay ?? _autoPlay.value,
+        epid: isUgc ? null : epId,
+        seasonId: isUgc ? null : seasonId,
+        pgcType: isUgc ? null : pgcType,
+        videoType: videoType,
+        onInit: () {
+          if (isCurrentQuery?.call() == false) return;
+          videoState.value = true;
+          setSubtitle(vttSubtitlesIndex.value);
+          // 离线视频：监听视频尺寸变化来更新竖屏状态
+          // 因为此时视频尺寸可能还未解码完成，所以需要通过流监听
+          if (source is FileSource) {
+            _listenVideoSizeForVerticalState();
+          }
+        },
+        width: playFromLocal
+            ? (effectiveLocalEntry?.ep?.width ??
+                  effectiveLocalEntry?.pageData?.width ??
+                  firstVideo.width)
+            : firstVideo.width,
+        height: playFromLocal
+            ? (effectiveLocalEntry?.ep?.height ??
+                  effectiveLocalEntry?.pageData?.height ??
+                  firstVideo.height)
+            : firstVideo.height,
+        volume: volume ?? this.volume,
+        autoFullScreenFlag: autoFullScreenFlag,
+      );
+    });
+    if (isCurrentQuery?.call() == false) return;
 
     if (_pendingVideoSwitchProtection) {
       await finishVideoSwitchProtection(
@@ -1262,6 +1322,7 @@ class VideoDetailController extends GetxController
     Duration? defaultST,
     bool fromReset = false,
     bool autoFullScreenFlag = false,
+    bool fromSwitch = false,
   }) async {
     if (isFileSource) {
       // 离线播放也支持空降助手（网络不可用时会静默失败）
@@ -1271,18 +1332,36 @@ class VideoDetailController extends GetxController
       return _initPlayerIfNeeded(autoFullScreenFlag: autoFullScreenFlag);
     }
 
-    if (isQuerying) {
-      if (_isSwitchingVideo) {
-        _isSwitchingVideo = false;
-      }
-      if (_pendingVideoSwitchProtection) {
-        await finishVideoSwitchProtection(
-          success: false,
-          reason: 'query_already_running',
-        );
-      }
+    if (isQuerying && !fromSwitch) {
       return;
     }
+    final queryGeneration = ++_videoUrlQueryGeneration;
+    final requestBvid = bvid;
+    final requestCid = cid.value;
+    final requestEpId = epId;
+    final requestSeasonId = seasonId;
+    bool isCurrentQuery() => _isCurrentVideoUrlQuery(
+      generation: queryGeneration,
+      bvid: requestBvid,
+      cid: requestCid,
+      epId: requestEpId,
+      seasonId: requestSeasonId,
+    );
+    Future<void> finishQuery({
+      bool? switchProtectionSuccess,
+      String? switchProtectionReason,
+    }) {
+      return _finishVideoUrlQuery(
+        generation: queryGeneration,
+        bvid: requestBvid,
+        cid: requestCid,
+        epId: requestEpId,
+        seasonId: requestSeasonId,
+        switchProtectionSuccess: switchProtectionSuccess,
+        switchProtectionReason: switchProtectionReason,
+      );
+    }
+
     isQuerying = true;
 
     // 在线播放：优先使用本地缓存条目作为播放器数据源。
@@ -1295,28 +1374,30 @@ class VideoDetailController extends GetxController
       final passed = args['entry'];
       if (passed is BiliDownloadEntryInfo &&
           passed.isCompleted &&
-          passed.cid == cid.value) {
+          passed.cid == requestCid) {
         localEntry = passed;
       } else if (passed is Map<String, dynamic>) {
         // 处理序列化传递的 entry（在已打开的窗口中切换视频时）
         try {
           final entry = BiliDownloadEntryInfo.fromJson(passed);
-          if (entry.isCompleted && entry.cid == cid.value) {
+          if (entry.isCompleted && entry.cid == requestCid) {
             localEntry = entry;
           }
         } catch (_) {}
       }
 
-      localEntry ??= await _findLocalCompletedEntryByCid(cid.value);
+      localEntry ??= await _findLocalCompletedEntryByCid(requestCid);
+      if (!isCurrentQuery()) return;
     }
     // 保存找到的本地缓存条目，以便从其他页面返回时能继续使用
     currentLocalEntry = localEntry;
     if (blockConfig.enableSponsorBlock && isBlock && !fromReset) {
       // 空降助手请求异步进行，不阻止视频加载
-      querySponsorBlock(bvid: bvid, cid: cid.value);
+      querySponsorBlock(bvid: requestBvid, cid: requestCid);
     }
     if (plPlayerController.cacheVideoQa == null) {
       final isWiFi = await ConnectivityUtils.isWiFi;
+      if (!isCurrentQuery()) return;
       plPlayerController
         ..cacheVideoQa = isWiFi
             ? Pref.defaultVideoQa
@@ -1327,15 +1408,16 @@ class VideoDetailController extends GetxController
     }
 
     final result = await VideoHttp.videoUrl(
-      cid: cid.value,
-      bvid: bvid,
-      epid: epId,
-      seasonId: seasonId,
+      cid: requestCid,
+      bvid: requestBvid,
+      epid: requestEpId,
+      seasonId: requestSeasonId,
       tryLook: plPlayerController.tryLook,
       videoType: _actualVideoType ?? videoType,
       language: currLang.value,
       voiceBalance: plPlayerController.enableAudioNormalization,
     );
+    if (!isCurrentQuery()) return;
 
     if (result case Success(:final response)) {
       data = response;
@@ -1387,8 +1469,13 @@ class VideoDetailController extends GetxController
         await _initPlayerIfNeeded(
           localEntry: localEntry,
           autoFullScreenFlag: autoFullScreenFlag,
+          isCurrentQuery: isCurrentQuery,
         );
-        isQuerying = false;
+        if (!isCurrentQuery()) return;
+        await finishQuery(
+          switchProtectionSuccess: true,
+          switchProtectionReason: 'player_init_completed',
+        );
         return;
       }
       if (data.dash == null) {
@@ -1398,7 +1485,10 @@ class VideoDetailController extends GetxController
         if (plPlayerController.isFullScreen.value) {
           plPlayerController.triggerFullScreen(status: false);
         }
-        isQuerying = false;
+        await finishQuery(
+          switchProtectionSuccess: false,
+          switchProtectionReason: 'video_url_empty',
+        );
         return;
       }
       final List<VideoItem> videoList = data.dash!.video!;
@@ -1498,6 +1588,12 @@ class VideoDetailController extends GetxController
       await _initPlayerIfNeeded(
         localEntry: localEntry,
         autoFullScreenFlag: autoFullScreenFlag,
+        isCurrentQuery: isCurrentQuery,
+      );
+      if (!isCurrentQuery()) return;
+      await finishQuery(
+        switchProtectionSuccess: true,
+        switchProtectionReason: 'player_init_completed',
       );
     } else {
       if (forceLocalPlay && localEntry != null) {
@@ -1506,6 +1602,12 @@ class VideoDetailController extends GetxController
         await _initPlayerIfNeeded(
           localEntry: localEntry,
           autoFullScreenFlag: autoFullScreenFlag,
+          isCurrentQuery: isCurrentQuery,
+        );
+        if (!isCurrentQuery()) return;
+        await finishQuery(
+          switchProtectionSuccess: true,
+          switchProtectionReason: 'player_init_completed',
         );
       } else {
         _autoPlay.value = false;
@@ -1513,10 +1615,13 @@ class VideoDetailController extends GetxController
         if (plPlayerController.isFullScreen.value) {
           plPlayerController.triggerFullScreen(status: false);
         }
+        await finishQuery(
+          switchProtectionSuccess: false,
+          switchProtectionReason: 'video_url_failed',
+        );
       }
       result.toast();
     }
-    isQuerying = false;
   }
 
   Future<BiliDownloadEntryInfo?> _findLocalCompletedEntryByCid(int cid) async {

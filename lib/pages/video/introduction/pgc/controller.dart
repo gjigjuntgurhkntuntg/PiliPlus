@@ -369,7 +369,10 @@ class PgcIntroController extends CommonIntroController {
           ..defaultST = progressToPass;
       }
 
-      await videoDetailCtr.queryVideoUrl(defaultST: progressToPass);
+      await videoDetailCtr.queryVideoUrl(
+        defaultST: progressToPass,
+        fromSwitch: true,
+      );
 
       if (cover != null && cover.isNotEmpty) {
         videoDetailCtr.cover.value = cover;
