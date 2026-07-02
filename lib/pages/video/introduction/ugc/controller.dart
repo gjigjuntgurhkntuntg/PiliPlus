@@ -91,9 +91,25 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
   // 获取视频简介&分p
   @override
-  Future<void> queryVideoIntro() async {
-    queryVideoTags();
-    final res = await VideoHttp.videoIntro(bvid: bvid);
+  Future<void> queryVideoIntro() => _queryVideoIntro();
+
+  Future<void> queryVideoIntroForSwitch(int switchGeneration) {
+    return _queryVideoIntro(
+      isCurrent: () => videoDetailCtr.isCurrentVideoSwitch(switchGeneration),
+    );
+  }
+
+  // 简介和标签请求可能晚于分 P 切换返回，isCurrent 用来防止旧 bvid/cid 回写。
+  Future<void> _queryVideoIntro({bool Function()? isCurrent}) async {
+    bool isCurrentIntro() => isCurrent?.call() ?? true;
+    if (!isCurrentIntro()) return;
+    // 请求发出时记录 bvid，避免 await 期间控制器已经切到另一个视频。
+    final requestBvid = bvid;
+    queryVideoTags(isCurrent: isCurrentIntro);
+    final res = await VideoHttp.videoIntro(bvid: requestBvid);
+    if (!isCurrentIntro() || bvid != requestBvid) {
+      return;
+    }
     if (res case Success(:final response)) {
       if (response.redirectUrl != null &&
           videoDetailCtr.epId == null &&
@@ -744,8 +760,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         hasLater.value = videoDetailCtr.sourceType == SourceType.watchLater;
         this.bvid = bvid;
 
-        // 异步查询视频简介，不阻止播放切换
-        queryVideoIntro().onError((error, stackTrace) {
+        // 异步查询视频简介，不阻止播放切换；旧 switch 返回时会被 generation 拦截。
+        queryVideoIntroForSwitch(currentSwitchGeneration).onError((
+          error,
+          stackTrace,
+        ) {
           if (kDebugMode) debugPrint('queryVideoIntro failed: $error');
           return null;
         });
@@ -769,7 +788,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         return false;
       }
       this.cid.value = cid;
-      queryOnlineTotal();
+      queryOnlineTotal(isCurrent: isCurrentSwitch);
       return true;
     } catch (e, s) {
       await cancelOwnedSwitch(reason: 'ugc_switch_failed');

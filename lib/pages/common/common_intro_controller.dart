@@ -113,8 +113,12 @@ abstract class CommonIntroController extends GetxController
   }
 
   // 查看同时在看人数
-  Future<void> queryOnlineTotal() async {
+  Future<void> queryOnlineTotal({bool Function()? isCurrent}) async {
     if (!isShowOnlineTotal) {
+      return;
+    }
+    // 切换分集时允许调用方传入当前性检查，避免旧 cid 的在线人数回写到新页面。
+    if (isCurrent?.call() == false) {
       return;
     }
     final result = await VideoHttp.onlineTotal(
@@ -122,6 +126,9 @@ abstract class CommonIntroController extends GetxController
       bvid: bvid,
       cid: cid.value,
     );
+    if (isCurrent?.call() == false) {
+      return;
+    }
     if (result case Success(:final response)) {
       total.value = response;
     }
@@ -158,8 +165,15 @@ abstract class CommonIntroController extends GetxController
     }
   }
 
-  Future<void> queryVideoTags() async {
+  Future<void> queryVideoTags({bool Function()? isCurrent}) async {
+    // 标签请求和简介切换并行执行，返回前后都检查一次，防止慢请求覆盖新视频标签。
+    if (isCurrent?.call() == false) {
+      return;
+    }
     final result = await UserHttp.videoTags(bvid: bvid, cid: cid.value);
+    if (isCurrent?.call() == false) {
+      return;
+    }
     videoTags.value = result.dataOrNull;
   }
 

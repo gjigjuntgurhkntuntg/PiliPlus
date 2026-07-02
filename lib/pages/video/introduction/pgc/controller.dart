@@ -473,10 +473,10 @@ class PgcIntroController extends CommonIntroController {
       }
       hasLater.value = videoDetailCtr.sourceType == SourceType.watchLater;
       this.cid.value = cid;
-      queryOnlineTotal();
+      queryOnlineTotal(isCurrent: isCurrentSwitch);
 
-      // 异步查询视频简介，不阻止播放切换
-      queryVideoIntro(episode as EpisodeItem);
+      // 异步查询视频简介，不阻止播放切换；返回时仍需确认本轮 switch 未过期。
+      queryVideoIntroForSwitch(currentSwitchGeneration, episode as EpisodeItem);
       return true;
     } catch (e, s) {
       await cancelOwnedSwitch(reason: 'pgc_switch_failed');
@@ -658,14 +658,32 @@ class PgcIntroController extends CommonIntroController {
 
   @override
   void queryVideoIntro([EpisodeItem? episode]) {
+    _queryVideoIntro(episode: episode);
+  }
+
+  void queryVideoIntroForSwitch(int switchGeneration, [EpisodeItem? episode]) {
+    _queryVideoIntro(
+      episode: episode,
+      isCurrent: () => videoDetailCtr.isCurrentVideoSwitch(switchGeneration),
+    );
+  }
+
+  // PGC 简介会被切换流程异步触发，isCurrent 用来拦截旧剧集返回后的状态回写。
+  void _queryVideoIntro({
+    EpisodeItem? episode,
+    bool Function()? isCurrent,
+  }) {
+    bool isCurrentIntro() => isCurrent?.call() ?? true;
+    if (!isCurrentIntro()) return;
     // 如果 pgcItem 未加载，跳过（会在 _onPgcItemReady 中再次调用）
     if (!pgcItemLoaded.value) return;
 
     episode ??= pgcItem.episodes!.firstWhere((e) => e.cid == cid.value);
+    if (!isCurrentIntro()) return;
     videoDetail
       ..value.title = episode.showTitle
       ..refresh();
-    if (isClosed) {
+    if (isClosed || !isCurrentIntro()) {
       return;
     }
     videoPlayerServiceHandler?.onVideoDetailChange(
