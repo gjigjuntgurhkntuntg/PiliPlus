@@ -1292,18 +1292,13 @@ class AudioController extends GetxController
       return;
     }
 
-    if (remaining == Duration.zero) {
-      _completedGateScheduler.cancel();
-      _consumePlaybackCompleted();
-      return;
-    }
-
     final completedOid = oid.toInt();
     final completedSubId = subId.firstOrNull;
     final completedIndex = index;
     final completedItem = audioItem.value;
     final completedSwitchGeneration = _switchGeneration;
 
+    // 即使 remaining 为 0，也统一进入调度器，确保回调前还能校验播放身份和切换代次。
     final delay = CompletedGate.delay(
       remaining,
       minDelay: CompletedGate.audioMinDelay,
