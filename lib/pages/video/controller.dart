@@ -115,13 +115,17 @@ class VideoDetailController extends GetxController
   late final RxList<MediaListItemModel> mediaList = <MediaListItemModel>[].obs;
   late String watchLaterTitle;
 
-  // 视频切换状态追踪：防止切换过程中退出时保存错误的进度
-  // 当视频切换时设为true，播放器初始化完成后设为false
+  // 视频切换状态追踪：防止切换过程中退出时保存错误的进度。
+  // generation 用来区分连续快速切换，只有当前 generation 才能完成或取消切换。
   bool _isSwitchingVideo = false;
-  bool _pendingVideoSwitchProtection = false;
   int _videoUrlQueryGeneration = 0;
+  int _videoSwitchGeneration = 0;
+  int? _activeVideoSwitchGeneration;
+  int? _pendingVideoSwitchProtectionGeneration;
   Future<void> _playerInitQueue = Future<void>.value();
   bool get isSwitchingVideo => _isSwitchingVideo;
+  bool get _pendingVideoSwitchProtection =>
+      _pendingVideoSwitchProtectionGeneration != null;
 
   /// tabs相关配置
   late TabController tabCtr;
@@ -148,28 +152,75 @@ class VideoDetailController extends GetxController
   bool get isAppInForeground =>
       SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
+  // 开始一次受保护的视频身份切换，并使旧的 playurl 查询立即失效。
+  int beginVideoSwitch({required String reason}) {
+    final generation = ++_videoSwitchGeneration;
+    _activeVideoSwitchGeneration = generation;
+    // 如果后台保护已被上一轮切换启动，归属需要迁移到最新切换，避免旧切换误关服务。
+    if (_pendingVideoSwitchProtectionGeneration != null) {
+      _pendingVideoSwitchProtectionGeneration = generation;
+    }
+    _isSwitchingVideo = true;
+    // Invalidate any in-flight non-switch query before the new identity is
+    // written, so late responses cannot initialize the old media.
+    _videoUrlQueryGeneration++;
+    isQuerying = false;
+    if (kDebugMode) {
+      debugPrint('🎬 开始视频切换: reason=$reason, generation=$generation');
+    }
+    return generation;
+  }
+
+  bool isCurrentVideoSwitch(int generation) {
+    return !isClosed && _activeVideoSwitchGeneration == generation;
+  }
+
+  // 后台/锁屏切换时临时拉起前台服务，防止播放器初始化阶段被系统中断。
   Future<void> ensureVideoSwitchProtection({
+    required int switchGeneration,
     required String reason,
     String? text,
   }) async {
+    if (!isCurrentVideoSwitch(switchGeneration)) {
+      return;
+    }
     if (isAppInForeground) {
       return;
     }
-    _pendingVideoSwitchProtection = true;
+    _pendingVideoSwitchProtectionGeneration = switchGeneration;
+    final wasProtectionRunning = PlaybackForegroundService.isRunning;
     await PlaybackForegroundService.start(
       title: 'PiliPlus 后台播放',
       text: text ?? '正在切换视频…',
     );
+    if (!isCurrentVideoSwitch(switchGeneration)) {
+      // start() 期间可能已经发生下一次切换，旧 generation 只能清理自己的保护状态。
+      await cancelVideoSwitch(
+        switchGeneration: switchGeneration,
+        reason: '${reason}_stale',
+      );
+      if (!wasProtectionRunning &&
+          _pendingVideoSwitchProtectionGeneration == null &&
+          PlaybackForegroundService.isRunning) {
+        await _finishVideoSwitchProtection(
+          success: false,
+          reason: '${reason}_stale_start',
+        );
+      }
+      return;
+    }
     if (kDebugMode) {
-      debugPrint('🎬 启动视频切换保护: reason=$reason');
+      debugPrint(
+        '🎬 启动视频切换保护: reason=$reason, generation=$switchGeneration',
+      );
     }
   }
 
-  Future<void> finishVideoSwitchProtection({
+  // 只负责停止前台服务本身；generation 归属由 finishVideoSwitch/cancelVideoSwitch 处理。
+  Future<void> _finishVideoSwitchProtection({
     required bool success,
     required String reason,
   }) async {
-    _pendingVideoSwitchProtection = false;
     if (PlaybackForegroundService.isRunning) {
       await PlaybackForegroundService.update(
         title: 'PiliPlus 后台播放',
@@ -181,6 +232,57 @@ class VideoDetailController extends GetxController
     if (kDebugMode) {
       debugPrint('🎬 结束视频切换保护: reason=$reason, success=$success');
     }
+  }
+
+  // 当前 generation 的统一收口点：成功时保留 active generation 供后续异步简介校验使用。
+  Future<void> finishVideoSwitch({
+    required int switchGeneration,
+    required bool success,
+    required String reason,
+  }) async {
+    if (!isCurrentVideoSwitch(switchGeneration)) {
+      return;
+    }
+    _isSwitchingVideo = false;
+    // 失败表示本轮切换没有落到有效媒体身份，需要释放查询和 active generation。
+    if (!success) {
+      isQuerying = false;
+      _activeVideoSwitchGeneration = null;
+    }
+    if (_pendingVideoSwitchProtectionGeneration == switchGeneration) {
+      _pendingVideoSwitchProtectionGeneration = null;
+      await _finishVideoSwitchProtection(
+        success: success,
+        reason: reason,
+      );
+    }
+    if (kDebugMode) {
+      debugPrint(
+        '🎬 完成视频切换: reason=$reason, success=$success, generation=$switchGeneration',
+      );
+    }
+  }
+
+  // 取消可能已经过期的切换；如果它只拥有前台保护，也要把保护服务收掉。
+  Future<void> cancelVideoSwitch({
+    required int switchGeneration,
+    required String reason,
+  }) {
+    if (isCurrentVideoSwitch(switchGeneration)) {
+      return finishVideoSwitch(
+        switchGeneration: switchGeneration,
+        success: false,
+        reason: reason,
+      );
+    }
+    if (_pendingVideoSwitchProtectionGeneration == switchGeneration) {
+      _pendingVideoSwitchProtectionGeneration = null;
+      return _finishVideoSwitchProtection(
+        success: false,
+        reason: reason,
+      );
+    }
+    return Future<void>.value();
   }
 
   bool _isCurrentVideoUrlQuery({
@@ -204,7 +306,8 @@ class VideoDetailController extends GetxController
     required int cid,
     required int? epId,
     required int? seasonId,
-    bool clearSwitching = true,
+    int? switchGeneration,
+    bool finishSwitch = true,
     bool? switchProtectionSuccess,
     String? switchProtectionReason,
   }) async {
@@ -218,11 +321,12 @@ class VideoDetailController extends GetxController
       return;
     }
     isQuerying = false;
-    if (clearSwitching) {
-      _isSwitchingVideo = false;
-    }
-    if (switchProtectionReason != null && _pendingVideoSwitchProtection) {
-      await finishVideoSwitchProtection(
+    // playurl 查询完成时顺带结束本轮切换，确保后台保护不会悬挂。
+    if (finishSwitch &&
+        switchGeneration != null &&
+        switchProtectionReason != null) {
+      await finishVideoSwitch(
+        switchGeneration: switchGeneration,
         success: switchProtectionSuccess ?? false,
         reason: switchProtectionReason,
       );
@@ -1248,13 +1352,6 @@ class VideoDetailController extends GetxController
       if (!currentQuery()) return;
     }
 
-    if (_pendingVideoSwitchProtection) {
-      await finishVideoSwitchProtection(
-        success: true,
-        reason: 'player_init_completed',
-      );
-    }
-
     if (isClosed) return;
 
     if (!isFileSource) {
@@ -1272,9 +1369,6 @@ class VideoDetailController extends GetxController
     }
 
     defaultST = null;
-
-    // 播放器初始化完成，重置视频切换标志
-    _isSwitchingVideo = false;
   }
 
   bool isQuerying = false;
@@ -1335,21 +1429,43 @@ class VideoDetailController extends GetxController
     bool fromReset = false,
     bool autoFullScreenFlag = false,
     bool fromSwitch = false,
-    bool Function()? isCurrentSwitch,
+    int? switchGeneration,
   }) async {
+    // switchGeneration 为空表示普通刷新；带 generation 的请求必须随视频切换一起失效。
+    bool isCurrentSwitch() =>
+        switchGeneration == null || isCurrentVideoSwitch(switchGeneration);
+
     if (isFileSource) {
-      if (isCurrentSwitch?.call() == false) return;
+      if (!isCurrentSwitch()) return;
       // 离线播放也支持空降助手（网络不可用时会静默失败）
       if (blockConfig.enableSponsorBlock && isBlock && !fromReset) {
         querySponsorBlock(bvid: bvid, cid: cid.value);
       }
-      return _initPlayerIfNeeded(
+      final init = _initPlayerIfNeeded(
         autoFullScreenFlag: autoFullScreenFlag,
         isCurrentQuery: isCurrentSwitch,
       );
+      if (init != null) {
+        await init;
+      }
+      if (!isCurrentSwitch()) return;
+      // 离线播放没有网络 playurl 收口，播放器初始化成功后在这里结束切换。
+      if (switchGeneration != null) {
+        await finishVideoSwitch(
+          switchGeneration: switchGeneration,
+          success: true,
+          reason: 'player_init_completed',
+        );
+      }
+      return;
     }
 
-    if (isQuerying && !fromSwitch) {
+    final isSwitchQuery = switchGeneration != null || fromSwitch;
+    // 切换期间拒绝普通刷新插队，避免旧视频的 playurl 重新初始化播放器。
+    if (_isSwitchingVideo && !isSwitchQuery) {
+      return;
+    }
+    if (isQuerying && !isSwitchQuery) {
       return;
     }
     final queryGeneration = ++_videoUrlQueryGeneration;
@@ -1357,16 +1473,14 @@ class VideoDetailController extends GetxController
     final requestCid = cid.value;
     final requestEpId = epId;
     final requestSeasonId = seasonId;
-    bool isCurrentVideoUrlQuery() =>
-        _isCurrentVideoUrlQuery(
-          generation: queryGeneration,
-          bvid: requestBvid,
-          cid: requestCid,
-          epId: requestEpId,
-          seasonId: requestSeasonId,
-        );
-    bool isCurrentQuery() =>
-        isCurrentVideoUrlQuery() && (isCurrentSwitch?.call() ?? true);
+    bool isCurrentVideoUrlQuery() => _isCurrentVideoUrlQuery(
+      generation: queryGeneration,
+      bvid: requestBvid,
+      cid: requestCid,
+      epId: requestEpId,
+      seasonId: requestSeasonId,
+    );
+    bool isCurrentQuery() => isCurrentVideoUrlQuery() && isCurrentSwitch();
     Future<void> finishQuery({
       bool? switchProtectionSuccess,
       String? switchProtectionReason,
@@ -1378,19 +1492,23 @@ class VideoDetailController extends GetxController
         cid: requestCid,
         epId: requestEpId,
         seasonId: requestSeasonId,
+        switchGeneration: switchGeneration,
         switchProtectionSuccess: switchProtectionSuccess,
         switchProtectionReason: switchProtectionReason,
       );
     }
+
+    // 如果 playurl 请求本身仍是最新，但所属切换已经过期，只清理查询状态，不结束新切换。
     Future<void> finishStaleSwitchQuery() {
-      if (isCurrentVideoUrlQuery() && isCurrentSwitch?.call() == false) {
+      if (isCurrentVideoUrlQuery() && !isCurrentSwitch()) {
         return _finishVideoUrlQuery(
           generation: queryGeneration,
           bvid: requestBvid,
           cid: requestCid,
           epId: requestEpId,
           seasonId: requestSeasonId,
-          clearSwitching: false,
+          switchGeneration: switchGeneration,
+          finishSwitch: false,
         );
       }
       return Future<void>.value();
@@ -1977,9 +2095,6 @@ class VideoDetailController extends GetxController
         );
       }
 
-      // 标记正在切换视频，在 playerInit 完成后会重置
-      _isSwitchingVideo = true;
-
       _updateListProgressSync(
         progressSeconds,
         currentAid,
@@ -2265,8 +2380,10 @@ class VideoDetailController extends GetxController
       cacheLocalProgress();
     }
     if (_pendingVideoSwitchProtection) {
+      _pendingVideoSwitchProtectionGeneration = null;
+      // 控制器销毁时不再等待通知服务停止，避免 onClose 被异步清理阻塞。
       unawaited(
-        finishVideoSwitchProtection(
+        _finishVideoSwitchProtection(
           success: false,
           reason: 'controller_closed',
         ),

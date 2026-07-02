@@ -9,10 +9,10 @@ import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/member.dart';
 import 'package:PiliPlus/http/search.dart';
-import 'package:PiliPlus/models_new/media_list/media_list.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
+import 'package:PiliPlus/models_new/media_list/media_list.dart';
 import 'package:PiliPlus/models_new/member_card_info/data.dart';
 import 'package:PiliPlus/models_new/relation/data.dart';
 import 'package:PiliPlus/models_new/video/video_ai_conclusion/model_result.dart';
@@ -51,7 +51,6 @@ import 'package:get/get.dart';
 class UgcIntroController extends CommonIntroController with ReloadMixin {
   late ExpandableController expandableCtr;
   int _changeEpisodeGeneration = 0;
-  int? _switchProtectionChangeGeneration;
 
   final RxBool status = true.obs;
 
@@ -550,23 +549,23 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     final changeGeneration = ++_changeEpisodeGeneration;
     bool isCurrentChange() =>
         !isClosed && changeGeneration == _changeEpisodeGeneration;
-    Future<void> finishOwnedSwitchProtection({
-      required bool success,
-      required String reason,
-    }) async {
-      if (_switchProtectionChangeGeneration != changeGeneration) {
-        return;
-      }
-      _switchProtectionChangeGeneration = null;
-      await videoDetailCtr.finishVideoSwitchProtection(
-        success: success,
-        reason: reason,
-      );
+    int? switchGeneration;
+    // UGC 自身的 changeGeneration 与视频控制器的 switchGeneration 都匹配时，才继续本轮切换。
+    bool isCurrentSwitch() {
+      final generation = switchGeneration;
+      return generation != null &&
+          isCurrentChange() &&
+          videoDetailCtr.isCurrentVideoSwitch(generation);
     }
 
-    void clearOwnedSwitchProtection() {
-      if (_switchProtectionChangeGeneration == changeGeneration) {
-        _switchProtectionChangeGeneration = null;
+    // 只取消本次 onChangeEpisode 拥有的 switch，避免连续点击时清掉更新的一轮切换。
+    Future<void> cancelOwnedSwitch({required String reason}) async {
+      final generation = switchGeneration;
+      if (generation != null) {
+        await videoDetailCtr.cancelVideoSwitch(
+          switchGeneration: generation,
+          reason: reason,
+        );
       }
     }
 
@@ -623,23 +622,33 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
       }
 
-      final protectsSwitch = !videoDetailCtr.isAppInForeground;
-      if (protectsSwitch) {
-        _switchProtectionChangeGeneration = changeGeneration;
+      if (!fromAudioPage &&
+          videoDetailCtr.bvid == bvid &&
+          videoDetailCtr.cid.value == cid) {
+        return false;
       }
+
+      // 视频切换生命周期由 VideoDetailController 管理，UGC 只持有本轮 generation 做过期校验。
+      final currentSwitchGeneration = videoDetailCtr.beginVideoSwitch(
+        reason: 'ugc_switch',
+      );
+      switchGeneration = currentSwitchGeneration;
       await videoDetailCtr.ensureVideoSwitchProtection(
+        switchGeneration: currentSwitchGeneration,
         reason: 'ugc_switch',
         text: '正在切换视频…',
       );
-      if (!isCurrentChange()) {
-        await finishOwnedSwitchProtection(
-          success: false,
-          reason: 'ugc_switch_stale',
-        );
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'ugc_switch_stale');
         return false;
       }
 
       videoDetailCtr.plPlayerController.pause();
+
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'ugc_switch_stale');
+        return false;
+      }
 
       // 从听视频页返回时，进度已经在听视频切换时保存过了，不需要再保存
       if (!fromAudioPage) {
@@ -647,6 +656,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         videoDetailCtr
           ..saveProgressBeforeChange()
           ..makeHeartBeat();
+      }
+
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'ugc_switch_stale');
+        return false;
       }
 
       videoDetailCtr
@@ -666,6 +680,10 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
           ? audioPosition
           : null;
       if (progressToPass != null) {
+        if (!isCurrentSwitch()) {
+          await cancelOwnedSwitch(reason: 'ugc_switch_stale');
+          return false;
+        }
         videoDetailCtr
           ..playedTime = progressToPass
           ..defaultST = progressToPass;
@@ -673,17 +691,13 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       await videoDetailCtr.queryVideoUrl(
         defaultST: progressToPass,
         fromSwitch: true,
-        isCurrentSwitch: isCurrentChange,
+        switchGeneration: switchGeneration,
       );
-      if (!isCurrentChange()) {
-        await finishOwnedSwitchProtection(
-          success: false,
-          reason: 'ugc_switch_stale',
-        );
+      if (!isCurrentSwitch()) {
         return false;
       }
-      clearOwnedSwitchProtection();
       if (videoDetailCtr.bvid != bvid || videoDetailCtr.cid.value != cid) {
+        await cancelOwnedSwitch(reason: 'ugc_switch_identity_mismatch');
         return false;
       }
 
@@ -691,12 +705,18 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         reload = true;
         aiConclusionResult = null;
 
+        if (!isCurrentSwitch()) {
+          return false;
+        }
         if (cover != null && cover.isNotEmpty) {
           videoDetailCtr.cover.value = cover;
         }
 
         // 重新请求相关视频（异步，不阻止切换）
         if (videoDetailCtr.plPlayerController.showRelatedVideo) {
+          if (!isCurrentSwitch()) {
+            return false;
+          }
           try {
             Get.find<RelatedController>(tag: heroTag)
               ..bvid = bvid
@@ -706,6 +726,9 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
         // 重新请求评论（异步，不阻止切换）
         if (videoDetailCtr.showReply) {
+          if (!isCurrentSwitch()) {
+            return false;
+          }
           try {
             final replyCtr = Get.find<VideoReplyController>(tag: heroTag)
               ..aid = aid;
@@ -715,6 +738,9 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
           } catch (_) {}
         }
 
+        if (!isCurrentSwitch()) {
+          return false;
+        }
         hasLater.value = videoDetailCtr.sourceType == SourceType.watchLater;
         this.bvid = bvid;
 
@@ -726,7 +752,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       } else {
         if (episode is Part) {
           final videoDetail = this.videoDetail.value;
-          if (isClosed) {
+          if (isClosed || !isCurrentSwitch()) {
             return true;
           }
           videoPlayerServiceHandler?.onVideoDetailChange(
@@ -739,14 +765,14 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
       }
 
+      if (!isCurrentSwitch()) {
+        return false;
+      }
       this.cid.value = cid;
       queryOnlineTotal();
       return true;
     } catch (e, s) {
-      await finishOwnedSwitchProtection(
-        success: false,
-        reason: 'ugc_switch_failed',
-      );
+      await cancelOwnedSwitch(reason: 'ugc_switch_failed');
       if (kDebugMode) debugPrint('ugc onChangeEpisode: $e');
       Utils.reportError(e, s);
       return false;

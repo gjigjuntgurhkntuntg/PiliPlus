@@ -36,11 +36,8 @@ class PgcIntroController extends CommonIntroController {
   int? seasonId;
   int? epId;
   int _changeEpisodeGeneration = 0;
-  int? _switchProtectionChangeGeneration;
 
-  String get pgcType => pgcItem.type == 1 || pgcItem.type == 4
-      ? '追番'
-      : '追剧';
+  String get pgcType => pgcItem.type == 1 || pgcItem.type == 4 ? '追番' : '追剧';
 
   late final bool isPgc;
   late PgcInfoModel pgcItem;
@@ -328,23 +325,23 @@ class PgcIntroController extends CommonIntroController {
     final changeGeneration = ++_changeEpisodeGeneration;
     bool isCurrentChange() =>
         !isClosed && changeGeneration == _changeEpisodeGeneration;
-    Future<void> finishOwnedSwitchProtection({
-      required bool success,
-      required String reason,
-    }) async {
-      if (_switchProtectionChangeGeneration != changeGeneration) {
-        return;
-      }
-      _switchProtectionChangeGeneration = null;
-      await videoDetailCtr.finishVideoSwitchProtection(
-        success: success,
-        reason: reason,
-      );
+    int? switchGeneration;
+    // PGC 自己的 changeGeneration 和视频控制器的 switchGeneration 都有效时，才允许继续写状态。
+    bool isCurrentSwitch() {
+      final generation = switchGeneration;
+      return generation != null &&
+          isCurrentChange() &&
+          videoDetailCtr.isCurrentVideoSwitch(generation);
     }
 
-    void clearOwnedSwitchProtection() {
-      if (_switchProtectionChangeGeneration == changeGeneration) {
-        _switchProtectionChangeGeneration = null;
+    // 本次 PGC 切换只取消自己创建的 switch，避免误结束后续点击触发的新切换。
+    Future<void> cancelOwnedSwitch({required String reason}) async {
+      final generation = switchGeneration;
+      if (generation != null) {
+        await videoDetailCtr.cancelVideoSwitch(
+          switchGeneration: generation,
+          reason: reason,
+        );
       }
     }
 
@@ -364,19 +361,25 @@ class PgcIntroController extends CommonIntroController {
       }
       final String? cover = episode.cover;
 
-      final protectsSwitch = !videoDetailCtr.isAppInForeground;
-      if (protectsSwitch) {
-        _switchProtectionChangeGeneration = changeGeneration;
+      if (!fromAudioPage &&
+          videoDetailCtr.epId == epId &&
+          videoDetailCtr.bvid == bvid &&
+          videoDetailCtr.cid.value == cid) {
+        return false;
       }
+
+      // 切换生命周期交给 VideoDetailController 统一管理，PGC 只保存本轮 generation。
+      final currentSwitchGeneration = videoDetailCtr.beginVideoSwitch(
+        reason: 'pgc_switch',
+      );
+      switchGeneration = currentSwitchGeneration;
       await videoDetailCtr.ensureVideoSwitchProtection(
+        switchGeneration: currentSwitchGeneration,
         reason: 'pgc_switch',
         text: '正在切换剧集…',
       );
-      if (!isCurrentChange()) {
-        await finishOwnedSwitchProtection(
-          success: false,
-          reason: 'pgc_switch_stale',
-        );
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'pgc_switch_stale');
         return false;
       }
 
@@ -385,10 +388,18 @@ class PgcIntroController extends CommonIntroController {
       this.bvid = bvid;
 
       videoDetailCtr.plPlayerController.pause();
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'pgc_switch_stale');
+        return false;
+      }
       if (!fromAudioPage) {
         videoDetailCtr
           ..saveProgressBeforeChange()
           ..makeHeartBeat();
+      }
+      if (!isCurrentSwitch()) {
+        await cancelOwnedSwitch(reason: 'pgc_switch_stale');
+        return false;
       }
       videoDetailCtr
         ..onReset()
@@ -405,6 +416,10 @@ class PgcIntroController extends CommonIntroController {
           ? audioPosition
           : null;
       if (progressToPass != null) {
+        if (!isCurrentSwitch()) {
+          await cancelOwnedSwitch(reason: 'pgc_switch_stale');
+          return false;
+        }
         videoDetailCtr
           ..playedTime = progressToPass
           ..defaultST = progressToPass;
@@ -413,28 +428,30 @@ class PgcIntroController extends CommonIntroController {
       await videoDetailCtr.queryVideoUrl(
         defaultST: progressToPass,
         fromSwitch: true,
-        isCurrentSwitch: isCurrentChange,
+        switchGeneration: currentSwitchGeneration,
       );
-      if (!isCurrentChange()) {
-        await finishOwnedSwitchProtection(
-          success: false,
-          reason: 'pgc_switch_stale',
-        );
+      if (!isCurrentSwitch()) {
         return false;
       }
-      clearOwnedSwitchProtection();
       if (videoDetailCtr.epId != epId ||
           videoDetailCtr.bvid != bvid ||
           videoDetailCtr.cid.value != cid) {
+        await cancelOwnedSwitch(reason: 'pgc_switch_identity_mismatch');
         return false;
       }
 
+      if (!isCurrentSwitch()) {
+        return false;
+      }
       if (cover != null && cover.isNotEmpty) {
         videoDetailCtr.cover.value = cover;
       }
 
       // 重新请求评论
       if (videoDetailCtr.showReply) {
+        if (!isCurrentSwitch()) {
+          return false;
+        }
         try {
           final replyCtr = Get.find<VideoReplyController>(tag: heroTag)
             ..aid = aid;
@@ -445,9 +462,15 @@ class PgcIntroController extends CommonIntroController {
       }
 
       if (isPgc && isLogin) {
+        if (!isCurrentSwitch()) {
+          return false;
+        }
         queryPgcLikeCoinFav();
       }
 
+      if (!isCurrentSwitch()) {
+        return false;
+      }
       hasLater.value = videoDetailCtr.sourceType == SourceType.watchLater;
       this.cid.value = cid;
       queryOnlineTotal();
@@ -456,10 +479,7 @@ class PgcIntroController extends CommonIntroController {
       queryVideoIntro(episode as EpisodeItem);
       return true;
     } catch (e, s) {
-      await finishOwnedSwitchProtection(
-        success: false,
-        reason: 'pgc_switch_failed',
-      );
+      await cancelOwnedSwitch(reason: 'pgc_switch_failed');
       if (kDebugMode) debugPrint('pgc onChangeEpisode: $e');
       Utils.reportError(e, s);
       return false;
