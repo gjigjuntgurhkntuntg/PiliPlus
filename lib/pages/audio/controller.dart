@@ -723,6 +723,29 @@ class AudioController extends GetxController
     return matchedSubIds.length == 1 ? matchedSubIds : result;
   }
 
+  List<Int64> _defaultSubIdsForPlaylistItem(
+    DetailItem audioItem,
+    PlayItem item,
+    List<Int64>? requestedSubId, {
+    required bool preferHistoryPart,
+  }) {
+    // 调用方显式指定分 P 时优先使用，避免历史分 P 覆盖上一首/下一首等确定性跳转。
+    if (requestedSubId != null) {
+      return requestedSubId;
+    }
+
+    final parts = audioItem.parts;
+    // 仅在用户直接进入某个合集条目时恢复历史分 P；连续播放应落到条目自身的默认分 P。
+    if (preferHistoryPart && parts.length > 1 && audioItem.lastPart > 0) {
+      final lastPart = audioItem.lastPart;
+      if (parts.any((part) => part.subId == lastPart)) {
+        return [lastPart];
+      }
+    }
+
+    return item.subId.isNotEmpty ? item.subId : [parts.first.subId];
+  }
+
   int _normalizeProgressSeconds(
     int progress, {
     required int durationSeconds,
@@ -1716,7 +1739,12 @@ class AudioController extends GetxController
             reason: 'play_prev',
             text: '正在切换上一条音频…',
           );
-          await _playIndexInternal(prev, skipSaveProgress: false);
+          // 上一条是顺序跳转，不应被该条目的历史分 P 重定向。
+          await _playIndexInternal(
+            prev,
+            skipSaveProgress: false,
+            preferHistoryPart: false,
+          );
         });
         return true;
       }
@@ -1755,7 +1783,12 @@ class AudioController extends GetxController
             reason: 'play_next',
             text: '正在切换下一条音频…',
           );
-          await _playIndexInternal(next, skipSaveProgress: skipSaveProgress);
+          // 下一条是顺序跳转，不应被该条目的历史分 P 重定向。
+          await _playIndexInternal(
+            next,
+            skipSaveProgress: skipSaveProgress,
+            preferHistoryPart: false,
+          );
         });
         return true;
       }
@@ -1767,6 +1800,7 @@ class AudioController extends GetxController
     int index, {
     List<Int64>? subId,
     bool skipSaveProgress = false,
+    bool preferHistoryPart = true,
   }) {
     _enqueueSwitch(
       () async {
@@ -1778,6 +1812,7 @@ class AudioController extends GetxController
           index,
           subId: subId,
           skipSaveProgress: skipSaveProgress,
+          preferHistoryPart: preferHistoryPart,
         );
       },
     );
@@ -1874,6 +1909,7 @@ class AudioController extends GetxController
     int index, {
     List<Int64>? subId,
     bool skipSaveProgress = false,
+    bool preferHistoryPart = true,
   }) async {
     if (index == this.index && subId == null) return;
     // 切换前保存当前视频进度（如果没有在调用方保存过）
@@ -1891,13 +1927,17 @@ class AudioController extends GetxController
     final audioItem = playlist![index];
     final item = audioItem.item;
     oid = item.oid;
-    this.subId =
-        subId ??
-        (item.subId.isNotEmpty ? item.subId : [audioItem.parts.first.subId]);
+    this.subId = _defaultSubIdsForPlaylistItem(
+      audioItem,
+      item,
+      subId,
+      preferHistoryPart: preferHistoryPart,
+    );
     itemType = item.itemType;
     _resetPlaybackProgressForSwitch();
     final currentAid = item.oid.toInt();
     final currentSubId = _currentSubId;
+    // 后续进度解析必须使用最终选定的 subId，保证历史分 P 和显式分 P 进度一致。
     final resolvedProgress = _resolvePlaylistItemProgress(
       audioItem,
       currentAid,

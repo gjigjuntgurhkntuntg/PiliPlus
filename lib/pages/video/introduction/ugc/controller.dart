@@ -9,6 +9,7 @@ import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/member.dart';
 import 'package:PiliPlus/http/search.dart';
+import 'package:PiliPlus/models_new/media_list/media_list.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
@@ -500,10 +501,49 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     }
   }
 
+  Future<int> _resolveMediaListHistoryCid(
+    MediaListItemModel episode,
+    String bvid,
+    int fallbackCid,
+    bool Function() isCurrent,
+  ) async {
+    final pages = episode.pages;
+    if (pages == null || pages.length <= 1) {
+      return fallbackCid;
+    }
+
+    // 合集条目可能代表一个多分 P 视频，进入条目时优先恢复该视频的历史播放分 P。
+    bool containsCid(int cid) => pages.any((page) => page.id == cid);
+    if (!containsCid(fallbackCid)) {
+      return fallbackCid;
+    }
+
+    try {
+      final res = await VideoHttp.playInfo(bvid: bvid, cid: fallbackCid);
+      if (!isCurrent()) {
+        return fallbackCid;
+      }
+      if (res case Success(:final response)) {
+        final lastPlayCid = response.lastPlayCid;
+        if (lastPlayCid != null &&
+            lastPlayCid > 0 &&
+            containsCid(lastPlayCid)) {
+          return lastPlayCid;
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('resolve media list history cid failed: $e');
+      }
+    }
+    return fallbackCid;
+  }
+
   // 修改分P或番剧分集
   Future<bool> onChangeEpisode(
     BaseEpisodeItem episode, {
     bool isStein = false,
+    bool preferHistoryPart = true,
     bool fromAudioPage = false, // 从听视频页返回时为true，跳过保存进度
     Duration? audioPosition, // 从听视频页返回时的播放进度
   }) async {
@@ -547,6 +587,21 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       }
       if (cid == null) {
         return false;
+      }
+
+      if (!fromAudioPage &&
+          preferHistoryPart &&
+          episode is MediaListItemModel) {
+        // 用户直接进入合集条目时恢复历史分 P；顺序播放和听视频返回会关闭该行为。
+        cid = await _resolveMediaListHistoryCid(
+          episode,
+          bvid,
+          cid,
+          isCurrentChange,
+        );
+        if (!isCurrentChange()) {
+          return false;
+        }
       }
 
       final String? cover = episode.cover;
@@ -771,7 +826,8 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     }
 
     if (cid != this.cid.value) {
-      onChangeEpisode(episodes[prevIndex]);
+      // 上一集/上一 P 是顺序切换，不应跳回该视频的历史分 P。
+      onChangeEpisode(episodes[prevIndex], preferHistoryPart: false);
       return true;
     } else {
       return false;
@@ -867,7 +923,8 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       }
 
       if (cid != this.cid.value) {
-        onChangeEpisode(episodes[nextIndex]);
+        // 下一集/下一 P 是顺序切换，不应跳回该视频的历史分 P。
+        onChangeEpisode(episodes[nextIndex], preferHistoryPart: false);
         return true;
       } else {
         return false;
