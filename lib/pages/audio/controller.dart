@@ -19,6 +19,7 @@ import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
+import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart'
     show FavMixin;
@@ -140,6 +141,8 @@ class AudioController extends GetxController
   int _completedGateGeneration = 0;
   bool _pendingCompleted = false;
   bool _manualPausePending = false;
+  int _heartDuration = 0;
+  bool _completedHeartBeatSynced = false;
   bool get _isAppInForeground =>
       SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
@@ -292,6 +295,8 @@ class AudioController extends GetxController
   Future<void>? onSeek(Duration duration) {
     _audioSwitchZeroPositionGuardGeneration = null;
     _cancelPendingCompleted(reason: 'seek');
+    _heartDuration = duration.inSeconds;
+    _completedHeartBeatSynced = false;
     if (_pendingSwitchProtection && !_isSwitchingAudio) {
       unawaited(_finishSwitchProtection(success: false, reason: 'seek'));
     }
@@ -460,6 +465,101 @@ class AudioController extends GetxController
     videoPlayerServiceHandler?.onStatusChange(status, false, false);
   }
 
+  bool get _enableHeartBeat => Accounts.heartbeat.isLogin && !Pref.historyPause;
+
+  bool _canReportHeartBeat(int reportItemType) =>
+      reportItemType == 1 && _enableHeartBeat;
+
+  void _unawaitedHeartBeat(Future<void>? future) {
+    if (future != null) {
+      unawaited(future);
+    }
+  }
+
+  Future<void>? _sendHeartBeat({
+    required int aid,
+    required int cid,
+    required int reportItemType,
+    required int progress,
+  }) {
+    if (!_canReportHeartBeat(reportItemType) || progress == 0) {
+      return null;
+    }
+
+    // Keep the same request surface as the normal video player heartbeat.
+    return VideoHttp.heartBeat(
+      bvid: IdUtils.av2bv(aid),
+      cid: cid,
+      progress: progress,
+      videoType: VideoType.ugc,
+    );
+  }
+
+  void _resetHeartBeatProgress() {
+    _heartDuration = 0;
+    _completedHeartBeatSynced = false;
+  }
+
+  Future<void>? _reportPlayingHeartBeat(Duration currentPosition) {
+    final currentPlayer = player;
+    if (_isSwitchingAudio ||
+        _pendingCompleted ||
+        currentPlayer?.state.playing != true) {
+      return null;
+    }
+
+    final progress = currentPosition.inSeconds;
+    if (progress <= 0 || progress - _heartDuration < 5) {
+      return null;
+    }
+    _heartDuration = progress;
+    return _sendHeartBeat(
+      aid: oid.toInt(),
+      cid: _currentSubId,
+      reportItemType: itemType,
+      progress: progress,
+    );
+  }
+
+  Future<void>? _reportStatusHeartBeat({
+    bool allowPendingCompleted = false,
+    bool force = false,
+  }) {
+    if (_isSwitchingAudio || (!allowPendingCompleted && _pendingCompleted)) {
+      return null;
+    }
+
+    final currentPlayer = player;
+    if (currentPlayer == null) {
+      return null;
+    }
+    final currentPosition = _rawAudioPosition(currentPlayer);
+    final progress = currentPosition.inSeconds;
+    if (progress <= 0 || (!force && progress - _heartDuration < 2)) {
+      return null;
+    }
+    _heartDuration = progress;
+    return _sendHeartBeat(
+      aid: oid.toInt(),
+      cid: _currentSubId,
+      reportItemType: itemType,
+      progress: progress,
+    );
+  }
+
+  Future<void>? _reportCompletedHeartBeat() {
+    if (_completedHeartBeatSynced) {
+      return null;
+    }
+    _completedHeartBeatSynced = true;
+    return _sendHeartBeat(
+      aid: oid.toInt(),
+      cid: _currentSubId,
+      reportItemType: itemType,
+      progress: -1,
+    );
+  }
+
   void _syncCompletedPlaybackPosition(Player currentPlayer) {
     final completedDuration = _rawAudioDuration(currentPlayer);
     if (completedDuration <= Duration.zero) {
@@ -481,6 +581,7 @@ class AudioController extends GetxController
       _manualPausePending = false;
       _cancelPendingCompleted(reason: 'playing');
       _publishPlaybackStatus(PlayerStatus.playing);
+      _unawaitedHeartBeat(_reportStatusHeartBeat());
       if (_pendingSwitchProtection) {
         unawaited(
           _finishSwitchProtection(
@@ -510,6 +611,7 @@ class AudioController extends GetxController
             return;
           }
           _publishPlaybackStatus(PlayerStatus.paused);
+          _unawaitedHeartBeat(_reportStatusHeartBeat());
         },
       );
       DebugLogService.log(
@@ -525,6 +627,7 @@ class AudioController extends GetxController
     }
 
     _publishPlaybackStatus(PlayerStatus.paused);
+    _unawaitedHeartBeat(_reportStatusHeartBeat());
   }
 
   int _beginSwitch() {
@@ -616,6 +719,7 @@ class AudioController extends GetxController
     _start = null;
     _audioSwitchOpenReady = false;
     _audioSwitchZeroPositionGuardGeneration = null;
+    _resetHeartBeatProgress();
     videoPlayerServiceHandler?.onPositionChange(Duration.zero);
     DebugLogService.log(
       'audio.switch',
@@ -1472,6 +1576,7 @@ class AudioController extends GetxController
             _videoDetailController?.playedTime = position;
           }
           videoPlayerServiceHandler?.onPositionChange(position);
+          _unawaitedHeartBeat(_reportPlayingHeartBeat(position));
         }
         _settleAudioSwitchingOnValidState(position: position);
         _maybeStartSwitchProtectionWarmup(position);
@@ -1627,9 +1732,15 @@ class AudioController extends GetxController
 
   bool _persistCompletedProgressIfNeeded({required String reason}) {
     final currentPlayer = player;
+    final completedDuration = currentPlayer == null
+        ? Duration.zero
+        : _rawAudioDuration(currentPlayer);
     final remaining = currentPlayer == null
         ? null
-        : _completedRemaining(currentPlayer);
+        : CompletedGate.remaining(
+            total: completedDuration,
+            position: currentPlayer.state.position,
+          );
     if (_isSwitchingAudio ||
         currentPlayer == null ||
         !currentPlayer.state.completed ||
@@ -1638,10 +1749,8 @@ class AudioController extends GetxController
       return false;
     }
 
-    final completedDuration = currentPlayer.state.duration > Duration.zero
-        ? currentPlayer.state.duration
-        : duration.value;
     _syncCompletedProgress();
+    _unawaitedHeartBeat(_reportCompletedHeartBeat());
     if (_shouldSyncVideoDetailMetadata && completedDuration > Duration.zero) {
       _videoDetailController?.playedTime = completedDuration;
     }
@@ -1668,6 +1777,7 @@ class AudioController extends GetxController
       },
     );
     _syncCompletedProgress();
+    _unawaitedHeartBeat(_reportCompletedHeartBeat());
     if (_shouldSyncVideoDetailMetadata) {
       _videoDetailController?.playedTime = duration.value;
     }
@@ -2086,7 +2196,10 @@ class AudioController extends GetxController
 
     if (!skipSaveProgress) {
       _saveCurrentProgress();
+      _unawaitedHeartBeat(_reportStatusHeartBeat());
     }
+    final prevHeartDuration = _heartDuration;
+    final prevCompletedHeartBeatSynced = _completedHeartBeatSynced;
     final generation = _beginSwitch();
     final nextPart = parts[nextPartIndex];
     DebugLogService.log(
@@ -2142,6 +2255,8 @@ class AudioController extends GetxController
       if (!_isStaleSwitch(generation)) {
         oid = prevOid;
         subId = prevSubId;
+        _heartDuration = prevHeartDuration;
+        _completedHeartBeatSynced = prevCompletedHeartBeatSynced;
         _clearAudioSwitching(reason: 'next_part_failed');
         _updateCurrentItemFromState();
       }
@@ -2168,7 +2283,10 @@ class AudioController extends GetxController
     // 切换前保存当前视频进度（如果没有在调用方保存过）
     if (!skipSaveProgress) {
       _saveCurrentProgress();
+      _unawaitedHeartBeat(_reportStatusHeartBeat());
     }
+    final prevHeartDuration = _heartDuration;
+    final prevCompletedHeartBeatSynced = _completedHeartBeatSynced;
     final prevIndex = this.index;
     final prevOid = oid;
     final prevSubId = this.subId;
@@ -2249,6 +2367,8 @@ class AudioController extends GetxController
         oid = prevOid;
         this.subId = prevSubId;
         itemType = prevItemType;
+        _heartDuration = prevHeartDuration;
+        _completedHeartBeatSynced = prevCompletedHeartBeatSynced;
         _clearAudioSwitching(reason: 'playlist_index_failed');
         _updateCurrentItemFromState();
       }
@@ -2503,6 +2623,12 @@ class AudioController extends GetxController
       reason: 'controller_closed',
     );
     if (!persistedCompleted && !_isSwitchingAudio) {
+      _unawaitedHeartBeat(
+        _reportStatusHeartBeat(
+          allowPendingCompleted: true,
+          force: _pendingCompleted,
+        ),
+      );
       _saveCurrentProgress();
     } else if (!persistedCompleted) {
       DebugLogService.log(
