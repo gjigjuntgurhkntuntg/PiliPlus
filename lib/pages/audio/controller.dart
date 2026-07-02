@@ -1282,7 +1282,7 @@ class AudioController extends GetxController
 
     videoPlayerServiceHandler?.setListControlMode(
       enabled: hasMultiItems,
-      onNext: hasMultiItems ? playNext : null,
+      onNext: hasMultiItems ? () => playNext(nextPart: true) : null,
       onPrevious: hasMultiItems ? playPrev : null,
     );
   }

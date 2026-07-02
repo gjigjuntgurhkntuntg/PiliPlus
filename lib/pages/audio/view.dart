@@ -896,7 +896,7 @@ class _AudioPageState extends State<AudioPage> {
           ),
         ),
         IconButton(
-          onPressed: _controller.playNext,
+          onPressed: () => _controller.playNext(nextPart: true),
           icon: const Icon(
             size: 40,
             Icons.skip_next_rounded,
