@@ -554,6 +554,24 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     return fallbackCid;
   }
 
+  bool _shouldRestoreHistoryPartForListTarget(BaseEpisodeItem episode) {
+    if (episode is! MediaListItemModel) {
+      return false;
+    }
+    final pages = episode.pages;
+    if (pages == null || pages.length <= 1) {
+      return false;
+    }
+
+    // 只有跨稿件进入多P稿件时才恢复历史分P；同稿件内切P要保留明确的顺序目标。
+    final targetBvid = episode.bvid;
+    if (targetBvid != null && targetBvid.isNotEmpty) {
+      return targetBvid != bvid;
+    }
+    final targetAid = episode.aid;
+    return targetAid != null && targetAid != videoDetailCtr.aid;
+  }
+
   // 修改分P或番剧分集
   Future<bool> onChangeEpisode(
     BaseEpisodeItem episode, {
@@ -871,8 +889,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     }
 
     if (cid != this.cid.value) {
-      // 上一集/上一 P 是顺序切换，不应跳回该视频的历史分 P。
-      onChangeEpisode(episodes[prevIndex], preferHistoryPart: false);
+      final episode = episodes[prevIndex];
+      onChangeEpisode(
+        episode,
+        preferHistoryPart: _shouldRestoreHistoryPartForListTarget(episode),
+      );
       return true;
     } else {
       return false;
@@ -968,8 +989,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       }
 
       if (cid != this.cid.value) {
-        // 下一集/下一 P 是顺序切换，不应跳回该视频的历史分 P。
-        onChangeEpisode(episodes[nextIndex], preferHistoryPart: false);
+        final episode = episodes[nextIndex];
+        onChangeEpisode(
+          episode,
+          preferHistoryPart: _shouldRestoreHistoryPartForListTarget(episode),
+        );
         return true;
       } else {
         return false;

@@ -18,6 +18,7 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart'
     show FavMixin;
@@ -99,6 +100,8 @@ class AudioController extends GetxController
   List<DetailItem>? playlist;
   final Map<String, int> _partProgress = {};
   final Map<String, int> _initialPlaylistProgress = {};
+  // lastProgress 先按稿件缓存；playInfo 解析出真实分P后再绑定到 cid。
+  final Map<String, int> _playlistItemHistoryProgress = {};
   final Map<String, int> _playlistHistoryProgress = {};
 
   late double speed = 1.0;
@@ -635,6 +638,8 @@ class AudioController extends GetxController
   String _playlistHistoryKey(int itemType, int aid, int cid) =>
       '$itemType:$aid:$cid';
 
+  String _playlistItemHistoryKey(int itemType, int aid) => '$itemType:$aid';
+
   int? _readInt(dynamic value) {
     if (value is int) {
       return value;
@@ -696,6 +701,20 @@ class AudioController extends GetxController
     return result;
   }
 
+  bool _detailItemContainsSubId(DetailItem item, int cid) =>
+      _detailItemSubIds(item).contains(cid);
+
+  // 跨稿件列表跳转要恢复历史分P；同稿件切P仍由 _playNextPartInternal 明确指定目标。
+  bool _shouldRestoreHistoryPartForPlaylistSwitch({
+    required Int64 previousOid,
+    required DetailItem targetItem,
+    required List<Int64>? requestedSubId,
+  }) =>
+      requestedSubId == null &&
+      isUgc &&
+      targetItem.item.oid != previousOid &&
+      targetItem.parts.length > 1;
+
   List<int> _playItemSubIds(PlayItem item, List<DetailItem> list) {
     final result = <int>[];
     for (final subId in item.subId) {
@@ -723,27 +742,118 @@ class AudioController extends GetxController
     return matchedSubIds.length == 1 ? matchedSubIds : result;
   }
 
-  List<Int64> _defaultSubIdsForPlaylistItem(
+  // playInfo 只返回历史 cid，进度仍来自播放列表的 lastProgress/DetailItem。
+  void _cacheDetailProgressForResolvedHistoryPart(
+    DetailItem item,
+    int aid,
+    int cid,
+  ) {
+    final itemHistoryProgress =
+        _playlistItemHistoryProgress[_playlistItemHistoryKey(
+          item.item.itemType,
+          aid,
+        )];
+    final durationSeconds = _detailItemDurationSeconds(item, cid);
+    final detailProgress = _normalizeProgressSeconds(
+      item.progress.toInt(),
+      durationSeconds: durationSeconds,
+    );
+    final fallbackProgress = detailProgress > 0
+        ? detailProgress
+        : _normalizeProgressSeconds(
+            item.lastPlayTime.toInt(),
+            durationSeconds: durationSeconds,
+          );
+    final progress = itemHistoryProgress != null && itemHistoryProgress > 0
+        ? itemHistoryProgress
+        : fallbackProgress;
+    if (progress <= 0) {
+      return;
+    }
+    _playlistHistoryProgress[_playlistHistoryKey(
+          item.item.itemType,
+          aid,
+          cid,
+        )] =
+        progress;
+  }
+
+  Future<Int64?> _resolvePlayInfoHistorySubId(
+    DetailItem audioItem,
+    PlayItem item,
+    Int64 fallbackSubId, {
+    required bool Function() isCurrent,
+  }) async {
+    final aid = item.oid.toInt();
+    final fallbackCid = fallbackSubId.toInt();
+    if (aid <= 0 ||
+        fallbackCid <= 0 ||
+        !_detailItemContainsSubId(audioItem, fallbackCid)) {
+      return null;
+    }
+
+    try {
+      final res = await VideoHttp.playInfo(
+        bvid: IdUtils.av2bv(aid),
+        cid: fallbackCid,
+      );
+      if (!isCurrent()) {
+        return null;
+      }
+      if (res case Success(:final response)) {
+        final lastPlayCid = response.lastPlayCid;
+        if (lastPlayCid != null &&
+            lastPlayCid > 0 &&
+            _detailItemContainsSubId(audioItem, lastPlayCid)) {
+          _cacheDetailProgressForResolvedHistoryPart(
+            audioItem,
+            aid,
+            lastPlayCid,
+          );
+          return Int64(lastPlayCid);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('resolve audio history cid failed: $e');
+      }
+    }
+    return null;
+  }
+
+  Future<List<Int64>> _defaultSubIdsForPlaylistItem(
     DetailItem audioItem,
     PlayItem item,
     List<Int64>? requestedSubId, {
     required bool preferHistoryPart,
-  }) {
+    required bool Function() isCurrent,
+  }) async {
     // 调用方显式指定分 P 时优先使用，避免历史分 P 覆盖上一首/下一首等确定性跳转。
     if (requestedSubId != null) {
       return requestedSubId;
     }
 
     final parts = audioItem.parts;
-    // 仅在用户直接进入某个合集条目时恢复历史分 P；连续播放应落到条目自身的默认分 P。
-    if (preferHistoryPart && parts.length > 1 && audioItem.lastPart > 0) {
+    final fallbackSubId = item.subId.firstOrNull ?? parts.first.subId;
+    // 显式进入条目和跨稿件列表跳转恢复历史分P；同稿件切P不走这里的历史覆盖。
+    if (preferHistoryPart && isUgc && parts.length > 1) {
+      final playInfoSubId = await _resolvePlayInfoHistorySubId(
+        audioItem,
+        item,
+        fallbackSubId,
+        isCurrent: isCurrent,
+      );
+      if (playInfoSubId != null) {
+        return [playInfoSubId];
+      }
+
       final lastPart = audioItem.lastPart;
-      if (parts.any((part) => part.subId == lastPart)) {
+      if (lastPart > 0 && parts.any((part) => part.subId == lastPart)) {
         return [lastPart];
       }
     }
 
-    return item.subId.isNotEmpty ? item.subId : [parts.first.subId];
+    return item.subId.isNotEmpty ? item.subId : [fallbackSubId];
   }
 
   int _normalizeProgressSeconds(
@@ -802,12 +912,26 @@ class AudioController extends GetxController
       return;
     }
 
+    final itemType = lastPlay.hasItemType() ? lastPlay.itemType : this.itemType;
+    final matchedItem = response.list.firstWhereOrNull(
+      (e) =>
+          e.item.oid == lastPlay.oid &&
+          (!lastPlay.hasItemType() || e.item.itemType == lastPlay.itemType),
+    );
+    final itemProgress = _normalizeProgressSeconds(
+      response.lastProgress.toInt(),
+      durationSeconds: matchedItem?.arc.duration.toInt() ?? 0,
+    );
+    if (itemProgress > 0) {
+      _playlistItemHistoryProgress[_playlistItemHistoryKey(itemType, aid)] =
+          itemProgress;
+    }
+
     final subIds = _playItemSubIds(lastPlay, response.list);
     if (subIds.isEmpty) {
       return;
     }
 
-    final itemType = lastPlay.hasItemType() ? lastPlay.itemType : this.itemType;
     for (final cid in subIds) {
       final matched = response.list.firstWhereOrNull(
         (e) => e.item.oid == lastPlay.oid && _detailItemSubIds(e).contains(cid),
@@ -1916,23 +2040,37 @@ class AudioController extends GetxController
     if (!skipSaveProgress) {
       _saveCurrentProgress();
     }
-    final generation = _beginSwitch();
-    _markAudioSwitching();
     final prevIndex = this.index;
     final prevOid = oid;
     final prevSubId = this.subId;
     final prevItemType = itemType;
-    this.index = index;
-    _isLocalPlayback = false;
     final audioItem = playlist![index];
     final item = audioItem.item;
-    oid = item.oid;
-    this.subId = _defaultSubIdsForPlaylistItem(
+    final shouldRestoreHistoryPart =
+        preferHistoryPart ||
+        _shouldRestoreHistoryPartForPlaylistSwitch(
+          previousOid: prevOid,
+          targetItem: audioItem,
+          requestedSubId: subId,
+        );
+
+    final generation = _beginSwitch();
+    _markAudioSwitching();
+    final resolvedSubIds = await _defaultSubIdsForPlaylistItem(
       audioItem,
       item,
       subId,
-      preferHistoryPart: preferHistoryPart,
+      preferHistoryPart: shouldRestoreHistoryPart,
+      isCurrent: () => !_isStaleSwitch(generation),
     );
+    if (_isStaleSwitch(generation)) {
+      return;
+    }
+
+    this.index = index;
+    _isLocalPlayback = false;
+    oid = item.oid;
+    this.subId = resolvedSubIds;
     itemType = item.itemType;
     _resetPlaybackProgressForSwitch();
     final currentAid = item.oid.toInt();
