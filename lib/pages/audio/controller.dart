@@ -132,8 +132,14 @@ class AudioController extends GetxController
   int? _audioSwitchZeroPositionGuardGeneration;
   bool _isInBackground = false;
   bool _isSwitchingAudio = false;
+  // Completed gate keeps raw media_kit completed/playing=false signals from
+  // publishing completed or switching items before the visible tail finishes.
   final CompletedGateScheduler _completedGateScheduler =
       CompletedGateScheduler();
+  Timer? _pendingNearTailPauseTimer;
+  int _completedGateGeneration = 0;
+  bool _pendingCompleted = false;
+  bool _manualPausePending = false;
   bool get _isAppInForeground =>
       SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
@@ -268,11 +274,19 @@ class AudioController extends GetxController
   }
 
   Future<void>? onPlay() {
+    _cancelPendingCompleted(reason: 'play');
     return player?.play();
   }
 
   Future<void>? onPause() {
-    return player?.pause();
+    _cancelPendingCompleted(reason: 'pause');
+    _manualPausePending = true;
+    final currentPlayer = player;
+    if (currentPlayer == null) {
+      _manualPausePending = false;
+      return null;
+    }
+    return currentPlayer.pause();
   }
 
   Future<void>? onSeek(Duration duration) {
@@ -369,8 +383,17 @@ class AudioController extends GetxController
   }
 
   void _cancelPendingCompleted({required String reason}) {
+    // Any playback identity change invalidates both the completed callback and
+    // the temporary near-tail pause suppression timer.
+    _completedGateGeneration += 1;
+    _pendingCompleted = false;
     final hadPending = _completedGateScheduler.cancel();
-    if (hadPending || reason != 'seek') {
+    final hadPendingPause = _pendingNearTailPauseTimer != null;
+    _pendingNearTailPauseTimer?.cancel();
+    _pendingNearTailPauseTimer = null;
+    if (hadPending ||
+        hadPendingPause ||
+        (reason != 'seek' && reason != 'playing')) {
       DebugLogService.log(
         'audio.completed',
         'cancel pending completed',
@@ -410,6 +433,98 @@ class AudioController extends GetxController
   Duration _rawAudioDuration(Player currentPlayer) {
     final stateDuration = currentPlayer.state.duration;
     return stateDuration > Duration.zero ? stateDuration : duration.value;
+  }
+
+  Duration? _completedRemaining(Player currentPlayer) {
+    final stateDuration = _rawAudioDuration(currentPlayer);
+    final stateRemaining = CompletedGate.remaining(
+      total: stateDuration,
+      position: currentPlayer.state.position,
+    );
+    final visibleRemaining = CompletedGate.remaining(
+      total: stateDuration,
+      position: position.value,
+      // Audio UI only publishes position when the displayed second changes.
+      // Allow that sub-second display lag to make the gate conservative.
+      maxAllowed: CompletedGate.maxRemaining + const Duration(seconds: 1),
+    );
+    return CompletedGate.longer(stateRemaining, visibleRemaining);
+  }
+
+  void _publishPlaybackStatus(PlayerStatus status) {
+    if (status.isPlaying) {
+      animController.forward();
+    } else {
+      animController.reverse();
+    }
+    videoPlayerServiceHandler?.onStatusChange(status, false, false);
+  }
+
+  void _syncCompletedPlaybackPosition(Player currentPlayer) {
+    final completedDuration = _rawAudioDuration(currentPlayer);
+    if (completedDuration <= Duration.zero) {
+      return;
+    }
+
+    // Publish the final position before completed so downstream switch logic
+    // observes a playback that has reached its real duration.
+    duration.value = completedDuration;
+    position.value = completedDuration;
+    if (_shouldSyncVideoDetailMetadata) {
+      _videoDetailController?.playedTime = completedDuration;
+    }
+    videoPlayerServiceHandler?.onPositionChange(completedDuration);
+  }
+
+  void _handlePlayingChanged(bool playing) {
+    if (playing) {
+      _manualPausePending = false;
+      _cancelPendingCompleted(reason: 'playing');
+      _publishPlaybackStatus(PlayerStatus.playing);
+      if (_pendingSwitchProtection) {
+        unawaited(
+          _finishSwitchProtection(
+            success: true,
+            reason: 'playback_started',
+          ),
+        );
+      }
+      return;
+    }
+
+    final isManualPause = _manualPausePending;
+    _manualPausePending = false;
+    final currentPlayer = player;
+    final remaining = currentPlayer == null
+        ? null
+        : _completedRemaining(currentPlayer);
+    if (!isManualPause && !_isSwitchingAudio && remaining != null) {
+      // Near the tail media_kit can flip playing=false before the final second
+      // is visible. Hold the paused status unless completed is canceled.
+      final generation = _completedGateGeneration;
+      _pendingNearTailPauseTimer?.cancel();
+      _pendingNearTailPauseTimer = Timer(
+        CompletedGate.tailWait(remaining, playbackRate: speed),
+        () {
+          if (generation != _completedGateGeneration || _pendingCompleted) {
+            return;
+          }
+          _publishPlaybackStatus(PlayerStatus.paused);
+        },
+      );
+      DebugLogService.log(
+        'audio.completed',
+        'hold near-tail pause',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+          'remainingMs': remaining.inMilliseconds,
+        },
+      );
+      return;
+    }
+
+    _publishPlaybackStatus(PlayerStatus.paused);
   }
 
   int _beginSwitch() {
@@ -1366,25 +1481,7 @@ class AudioController extends GetxController
         this.duration.value = duration;
         _settleAudioSwitchingOnValidState(duration: duration);
       }),
-      stream.playing.listen((playing) {
-        final PlayerStatus playerStatus;
-        if (playing) {
-          animController.forward();
-          playerStatus = PlayerStatus.playing;
-          if (_pendingSwitchProtection) {
-            unawaited(
-              _finishSwitchProtection(
-                success: true,
-                reason: 'playback_started',
-              ),
-            );
-          }
-        } else {
-          animController.reverse();
-          playerStatus = PlayerStatus.paused;
-        }
-        videoPlayerServiceHandler?.onStatusChange(playerStatus, false, false);
-      }),
+      stream.playing.listen(_handlePlayingChanged),
       stream.completed.listen((completed) {
         if (!completed) {
           return;
@@ -1421,10 +1518,17 @@ class AudioController extends GetxController
       return;
     }
 
-    final remaining = CompletedGate.remaining(
-      total: currentPlayer.state.duration,
+    final stateDuration = _rawAudioDuration(currentPlayer);
+    final stateRemaining = CompletedGate.remaining(
+      total: stateDuration,
       position: currentPlayer.state.position,
     );
+    final visibleRemaining = CompletedGate.remaining(
+      total: stateDuration,
+      position: position.value,
+      maxAllowed: CompletedGate.maxRemaining + const Duration(seconds: 1),
+    );
+    final remaining = CompletedGate.longer(stateRemaining, visibleRemaining);
     if (remaining == null) {
       DebugLogService.log(
         'audio.completed',
@@ -1432,8 +1536,9 @@ class AudioController extends GetxController
         extra: {
           'oid': oid.toString(),
           'subId': subId.firstOrNull?.toString(),
-          'position': currentPlayer.state.position.inMilliseconds,
-          'duration': currentPlayer.state.duration.inMilliseconds,
+          'statePosition': currentPlayer.state.position.inMilliseconds,
+          'visiblePosition': position.value.inMilliseconds,
+          'duration': stateDuration.inMilliseconds,
         },
       );
       return;
@@ -1446,10 +1551,13 @@ class AudioController extends GetxController
     final completedSwitchGeneration = _switchGeneration;
 
     // 即使 remaining 为 0，也统一进入调度器，确保回调前还能校验播放身份和切换代次。
-    final delay = CompletedGate.delay(
-      remaining,
-      minDelay: CompletedGate.audioMinDelay,
-    );
+    _pendingNearTailPauseTimer?.cancel();
+    _pendingNearTailPauseTimer = null;
+    _pendingCompleted = true;
+    final completedGateGeneration = ++_completedGateGeneration;
+    final tailDelay = CompletedGate.isReady(remaining)
+        ? Duration.zero
+        : CompletedGate.tailPlaybackWait(remaining, playbackRate: speed);
     if (_isInBackground && _hasNextSwitchTarget) {
       unawaited(
         _ensureSwitchProtection(
@@ -1464,46 +1572,69 @@ class AudioController extends GetxController
       extra: {
         'oid': oid.toString(),
         'subId': subId.firstOrNull?.toString(),
-        'delayMs': delay.inMilliseconds,
+        'delayMs': tailDelay.inMilliseconds,
         'remainingMs': remaining.inMilliseconds,
+        'stateRemainingMs': stateRemaining?.inMilliseconds,
+        'visibleRemainingMs': visibleRemaining?.inMilliseconds,
+        'gateGeneration': completedGateGeneration,
         'switchGeneration': completedSwitchGeneration,
         'playMode': playMode.value.name,
       },
     );
 
-    _completedGateScheduler.schedule(delay, () {
+    bool isSameCompletedPlayback(Player? currentPlayer) =>
+        // The delayed callback must still belong to the same audio item and
+        // the same completed signal; otherwise a seek or switch already won.
+        completedGateGeneration == _completedGateGeneration &&
+        currentPlayer != null &&
+        _isSameCompletedPlayback(
+          currentPlayer: currentPlayer,
+          switchGeneration: completedSwitchGeneration,
+          currentOid: completedOid,
+          currentSubId: completedSubId,
+          currentIndex: completedIndex,
+          currentItem: completedItem,
+        ) &&
+        _completedRemaining(currentPlayer) != null;
+
+    _completedGateScheduler.schedule(tailDelay, () {
       final currentPlayer = player;
-      if (currentPlayer == null ||
-          !_isSameCompletedPlayback(
-            currentPlayer: currentPlayer,
-            switchGeneration: completedSwitchGeneration,
-            currentOid: completedOid,
-            currentSubId: completedSubId,
-            currentIndex: completedIndex,
-            currentItem: completedItem,
-          ) ||
-          CompletedGate.remaining(
-                total: currentPlayer.state.duration,
-                position: currentPlayer.state.position,
-              ) ==
-              null) {
+      if (!isSameCompletedPlayback(currentPlayer)) {
         return;
       }
 
-      _consumePlaybackCompleted();
+      _syncCompletedPlaybackPosition(currentPlayer!);
+      DebugLogService.log(
+        'audio.completed',
+        'settle completed position',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+          'gateGeneration': completedGateGeneration,
+        },
+      );
+      _completedGateScheduler.schedule(CompletedGate.buffer, () {
+        final currentPlayer = player;
+        if (!isSameCompletedPlayback(currentPlayer)) {
+          return;
+        }
+
+        _pendingCompleted = false;
+        _consumePlaybackCompleted();
+      });
     });
   }
 
   bool _persistCompletedProgressIfNeeded({required String reason}) {
     final currentPlayer = player;
+    final remaining = currentPlayer == null
+        ? null
+        : _completedRemaining(currentPlayer);
     if (_isSwitchingAudio ||
         currentPlayer == null ||
         !currentPlayer.state.completed ||
-        CompletedGate.remaining(
-              total: currentPlayer.state.duration,
-              position: currentPlayer.state.position,
-            ) ==
-            null) {
+        remaining == null ||
+        !CompletedGate.isReady(remaining)) {
       return false;
     }
 
@@ -1540,11 +1671,7 @@ class AudioController extends GetxController
     if (_shouldSyncVideoDetailMetadata) {
       _videoDetailController?.playedTime = duration.value;
     }
-    videoPlayerServiceHandler?.onStatusChange(
-      PlayerStatus.completed,
-      false,
-      false,
-    );
+    _publishPlaybackStatus(PlayerStatus.completed);
     if (kDebugMode) {
       debugPrint('AudioController: 播放完成，准备切换下一个');
     }
@@ -1848,8 +1975,10 @@ class AudioController extends GetxController
     if (player case final player?) {
       if ((duration.value - position.value).inMilliseconds < 50) {
         onSeek(Duration.zero)?.whenComplete(player.play);
+      } else if (player.state.playing) {
+        onPause();
       } else {
-        player.playOrPause();
+        onPlay();
       }
     }
   }

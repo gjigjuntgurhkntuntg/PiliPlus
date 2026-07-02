@@ -122,6 +122,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
   bool isShowing = true;
   Duration? _pendingAudioSyncPosition;
+  // The player publishes completed only after its tail gate. The page keeps a
+  // lightweight scheduler to re-check route/video identity before consuming it.
   final CompletedGateScheduler _completedGateScheduler =
       CompletedGateScheduler();
   bool _completedProgressSynced = false;
@@ -296,16 +298,12 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       total: player.state.duration,
       position: player.state.position,
     );
+    // Page-level consumption only accepts an already-gated completed status
+    // when the raw player position is also settled at the tail.
     if (remaining == null) {
       if (kDebugMode) {
         debugPrint('[VideoPage] drop completed candidate: not near tail');
       }
-      return;
-    }
-
-    if (remaining == Duration.zero) {
-      _completedGateScheduler.cancel();
-      _consumeCompletedPlayback();
       return;
     }
 
@@ -318,17 +316,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     final completedVideoType = videoDetailController.videoType;
     final completedSourceType = videoDetailController.sourceType;
 
-    final delay = CompletedGate.delay(
-      remaining,
-      minDelay: CompletedGate.videoMinDelay,
-    );
     if (kDebugMode) {
-      debugPrint(
-        '[VideoPage] pending completed consume: delay=${delay.inMilliseconds}ms',
-      );
+      debugPrint('[VideoPage] pending completed consume: gated status');
     }
 
-    _completedGateScheduler.schedule(delay, () {
+    _completedGateScheduler.schedule(Duration.zero, () {
+      // Route changes and list switches can still happen before this delayed
+      // callback runs, so validate the captured playback identity again.
       if (!mounted || !isShowing) {
         return;
       }
@@ -355,11 +349,12 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         return;
       }
 
-      if (CompletedGate.remaining(
-            total: currentPlayer.state.duration,
-            position: currentPlayer.state.position,
-          ) ==
-          null) {
+      final currentRemaining = CompletedGate.remaining(
+        total: currentPlayer.state.duration,
+        position: currentPlayer.state.position,
+      );
+      if (currentRemaining == null ||
+          !CompletedGate.isReady(currentRemaining)) {
         return;
       }
 
@@ -415,15 +410,20 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   bool _persistCompletedProgressIfNeeded({required String reason}) {
     final controller = plPlayerController;
     final player = controller?.videoPlayerController;
+    // Close-time persistence should not mark completed from a stale completed
+    // signal that has not passed the tightened gate.
+    final remaining = player == null
+        ? null
+        : CompletedGate.remaining(
+            total: player.state.duration,
+            position: player.state.position,
+          );
     if (controller == null ||
         player == null ||
         videoDetailController.isSwitchingVideo ||
         !controller.playerStatus.isCompleted ||
-        CompletedGate.remaining(
-              total: player.state.duration,
-              position: player.state.position,
-            ) ==
-            null) {
+        remaining == null ||
+        !CompletedGate.isReady(remaining)) {
       return false;
     }
 

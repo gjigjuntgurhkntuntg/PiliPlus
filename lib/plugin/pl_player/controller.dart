@@ -30,6 +30,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
+import 'package:PiliPlus/services/playback/completed_gate.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
@@ -176,6 +177,14 @@ class PlPlayerController with BlockConfigMixin {
   Completer<void>? _pendingSeekCompleter;
   Timer? _pendingSeekTimer;
   int _seekGeneration = 0;
+  // Completed gate delays completed status publication until the final media
+  // tail has caught up, so page-level next-play logic cannot run early.
+  final CompletedGateScheduler _completedGateScheduler =
+      CompletedGateScheduler();
+  Timer? _pendingNearTailPauseTimer;
+  int _completedGateGeneration = 0;
+  bool _pendingCompleted = false;
+  bool _manualPausePending = false;
 
   Box setting = GStorage.setting;
 
@@ -625,6 +634,7 @@ class PlPlayerController with BlockConfigMixin {
   bool _isSwitchingMedia = false;
 
   int _beginMediaSwitch() {
+    _cancelPendingCompleted(reason: 'media_switch');
     _cancelSubForSeek();
     _isSwitchingMedia = true;
     return ++_mediaSwitchGeneration;
@@ -1117,35 +1127,209 @@ class PlPlayerController with BlockConfigMixin {
   final Set<ValueChanged<PlayerStatus>> _statusListeners = {};
 
   /// 播放事件监听
+  void _publishPlayerStatus(PlayerStatus status) {
+    WakelockPlus.toggle(enable: status.isPlaying);
+    if (!status.isPlaying) {
+      _disableAutoEnterPip();
+    }
+    playerStatus.value = status;
+    videoPlayerServiceHandler?.onStatusChange(
+      status,
+      isBuffering.value,
+      isLive,
+    );
+    for (final element in List<ValueChanged<PlayerStatus>>.of(
+      _statusListeners,
+    )) {
+      element(status);
+    }
+  }
+
+  void _cancelPendingCompleted({required String reason}) {
+    // Seeks, manual controls, and media switches all make the pending completed
+    // candidate stale.
+    _completedGateGeneration += 1;
+    _pendingCompleted = false;
+    final hadPending = _completedGateScheduler.cancel();
+    final hadPendingPause = _pendingNearTailPauseTimer != null;
+    _pendingNearTailPauseTimer?.cancel();
+    _pendingNearTailPauseTimer = null;
+    if (kDebugMode &&
+        (hadPending ||
+            hadPendingPause ||
+            (reason != 'seek' && reason != 'playing'))) {
+      debugPrint('[PlPlayerController] cancel pending completed: $reason');
+    }
+  }
+
+  void _handlePlayingChanged(bool playing) {
+    if (playing) {
+      _manualPausePending = false;
+      _cancelPendingCompleted(reason: 'playing');
+      if (_isAutoEnterPip) {
+        if (_isCurrVideoPage) {
+          enterPip(autoEnter: true);
+        } else {
+          _disableAutoEnterPip();
+        }
+      }
+      _publishPlayerStatus(PlayerStatus.playing);
+      return;
+    }
+
+    final isManualPause = _manualPausePending;
+    _manualPausePending = false;
+    final currentPlayer = _videoPlayerController;
+    final remaining = currentPlayer == null
+        ? null
+        : _completedRemaining(currentPlayer);
+    if (!isManualPause && !_isSwitchingMedia && remaining != null) {
+      // Suppress the near-tail paused status that media_kit can emit before
+      // the visible position reaches duration.
+      final generation = _completedGateGeneration;
+      _pendingNearTailPauseTimer?.cancel();
+      _pendingNearTailPauseTimer = Timer(
+        CompletedGate.tailWait(remaining, playbackRate: playbackSpeed),
+        () {
+          if (generation != _completedGateGeneration || _pendingCompleted) {
+            return;
+          }
+          _publishPlayerStatus(PlayerStatus.paused);
+        },
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[PlPlayerController] hold near-tail pause: '
+          'remaining=${remaining.inMilliseconds}ms',
+        );
+      }
+      return;
+    }
+
+    _publishPlayerStatus(PlayerStatus.paused);
+  }
+
+  Duration? _completedRemaining(Player currentPlayer) {
+    final stateDuration = currentPlayer.state.duration > Duration.zero
+        ? currentPlayer.state.duration
+        : duration.value;
+    final stateRemaining = CompletedGate.remaining(
+      total: stateDuration,
+      position: currentPlayer.state.position,
+    );
+    final publishedRemaining = CompletedGate.remaining(
+      total: stateDuration,
+      position: position,
+      // Published position can lag raw state by a partial second; the larger
+      // remaining value keeps completed conservative.
+      maxAllowed: CompletedGate.maxRemaining + const Duration(seconds: 1),
+    );
+    return CompletedGate.longer(stateRemaining, publishedRemaining);
+  }
+
+  void _scheduleCompletedStatus(Player completedPlayer) {
+    final stateRemaining = CompletedGate.remaining(
+      total: completedPlayer.state.duration,
+      position: completedPlayer.state.position,
+    );
+    final publishedRemaining = CompletedGate.remaining(
+      total: completedPlayer.state.duration > Duration.zero
+          ? completedPlayer.state.duration
+          : duration.value,
+      position: position,
+      maxAllowed: CompletedGate.maxRemaining + const Duration(seconds: 1),
+    );
+    final remaining = CompletedGate.longer(stateRemaining, publishedRemaining);
+    if (remaining == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[PlPlayerController] drop completed candidate: not near tail',
+        );
+      }
+      return;
+    }
+
+    _pendingNearTailPauseTimer?.cancel();
+    _pendingNearTailPauseTimer = null;
+    _pendingCompleted = true;
+    final generation = ++_completedGateGeneration;
+    // Wait only for the remaining playback tail here; the final settle buffer
+    // is scheduled after the completed position is published below.
+    final tailDelay = CompletedGate.isReady(remaining)
+        ? Duration.zero
+        : CompletedGate.tailPlaybackWait(
+            remaining,
+            playbackRate: playbackSpeed,
+          );
+    if (kDebugMode) {
+      debugPrint(
+        '[PlPlayerController] schedule completed status: '
+        'delay=${tailDelay.inMilliseconds}ms '
+        'remaining=${remaining.inMilliseconds}ms '
+        'stateRemaining=${stateRemaining?.inMilliseconds}ms '
+        'publishedRemaining=${publishedRemaining?.inMilliseconds}ms',
+      );
+    }
+
+    bool isSameCompletedPlayback() =>
+        // Delayed completed publication is valid only while the same player
+        // instance is still completed and no media switch has superseded it.
+        generation == _completedGateGeneration &&
+        !_isSwitchingMedia &&
+        identical(_videoPlayerController, completedPlayer) &&
+        completedPlayer.state.completed &&
+        _completedRemaining(completedPlayer) != null;
+
+    _completedGateScheduler.schedule(tailDelay, () {
+      if (!isSameCompletedPlayback()) {
+        return;
+      }
+
+      final completedDuration = completedPlayer.state.duration > Duration.zero
+          ? completedPlayer.state.duration
+          : duration.value;
+      if (completedDuration > Duration.zero) {
+        // Publish the final position before completed so page listeners consume
+        // a fully-ended playback state, not the stale raw media_kit position.
+        duration.value = completedDuration;
+        position = completedDuration;
+        updatePositionSecond();
+        if (!isSliderMoving.value) {
+          sliderPosition = completedDuration;
+          updateSliderPositionSecond();
+        }
+        for (final element in List<ValueChanged<Duration>>.of(
+          _positionListeners,
+        )) {
+          element(completedDuration);
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint('PlPlayerController: settle completed position');
+      }
+      _completedGateScheduler.schedule(CompletedGate.buffer, () {
+        if (!isSameCompletedPlayback()) {
+          return;
+        }
+
+        _pendingCompleted = false;
+        if (kDebugMode) {
+          debugPrint('PlPlayerController: publish gated completed status');
+        }
+        _publishPlayerStatus(PlayerStatus.completed);
+      });
+    });
+  }
+
   void _startListeners(NativePlayer player) {
     assert(_subscriptions == null);
     final stream = player.stream;
     _subscriptions = [
       stream.playing.listen((event) {
-        WakelockPlus.toggle(enable: event);
-        if (event) {
-          if (_isAutoEnterPip) {
-            if (_isCurrVideoPage) {
-              enterPip(autoEnter: true);
-            } else {
-              _disableAutoEnterPip();
-            }
-          }
-          playerStatus.value = PlayerStatus.playing;
-        } else {
-          _disableAutoEnterPip();
-          playerStatus.value = PlayerStatus.paused;
-        }
-        videoPlayerServiceHandler?.onStatusChange(
-          playerStatus.value,
-          isBuffering.value,
-          isLive,
-        );
+        _handlePlayingChanged(event);
 
         /// 触发回调事件
-        for (final element in _statusListeners) {
-          element(event ? PlayerStatus.playing : PlayerStatus.paused);
-        }
         if (!_isSwitchingMedia &&
             videoPlayerController!.state.position.inSeconds != 0) {
           makeHeartBeat(positionSeconds.value, type: HeartBeatType.status);
@@ -1156,12 +1340,9 @@ class PlPlayerController with BlockConfigMixin {
         if (kDebugMode) {
           debugPrint('PlPlayerController: 播放完成，准备切换下一个');
         }
-        playerStatus.value = PlayerStatus.completed;
+        _scheduleCompletedStatus(player);
 
         /// 触发回调事件
-        for (final element in _statusListeners) {
-          element(PlayerStatus.completed);
-        }
       }),
       stream.position.listen((event) {
         if (_isSwitchingMedia) return;
@@ -1290,6 +1471,7 @@ class PlPlayerController with BlockConfigMixin {
 
   /// 移除事件监听
   void _removeListeners() {
+    _cancelPendingCompleted(reason: 'remove_listeners');
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
@@ -1328,6 +1510,7 @@ class PlPlayerController with BlockConfigMixin {
     if (targetPlayer == null) {
       return;
     }
+    _cancelPendingCompleted(reason: 'seek');
     final completedSeekStatus = playerStatus.isCompleted
         ? targetPlayer.state.playing
               ? PlayerStatus.playing
@@ -1460,6 +1643,7 @@ class PlPlayerController with BlockConfigMixin {
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
+    _cancelPendingCompleted(reason: 'play');
     // 播放时自动隐藏控制条
     controls = !hideControls;
     // repeat为true，将从头播放
@@ -1478,7 +1662,14 @@ class PlPlayerController with BlockConfigMixin {
 
   /// 暂停播放
   Future<void> pause({bool notify = true, bool isInterrupt = false}) async {
-    await _videoPlayerController?.pause();
+    _cancelPendingCompleted(reason: 'pause');
+    _manualPausePending = true;
+    final currentPlayer = _videoPlayerController;
+    if (currentPlayer == null) {
+      _manualPausePending = false;
+      return;
+    }
+    await currentPlayer.pause();
     playerStatus.value = PlayerStatus.paused;
 
     // 主动暂停时让出音频焦点
