@@ -880,7 +880,17 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           if (targetItem == null) {
             for (final item in videoDetailController.mediaList) {
               if (matchesAudioState(item)) {
-                targetItem = item;
+                // 合集条目可能只匹配到 aid/bvid；听视频返回时仍要用音频侧真实 cid 同步分 P。
+                targetItem = audioCid == null || item.cid == audioCid
+                    ? item
+                    : ugc.BaseEpisodeItem(
+                        aid: item.aid ?? audioAid,
+                        bvid: item.bvid ?? currentBvid,
+                        cid: audioCid,
+                        title: item.title,
+                        cover: item.cover,
+                        badge: item.badge,
+                      );
                 break;
               }
             }
