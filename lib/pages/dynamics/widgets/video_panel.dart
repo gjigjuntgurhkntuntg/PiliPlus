@@ -1,12 +1,11 @@
 // 视频or合集
-import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/svg/play_icon.dart';
 import 'package:PiliPlus/common/widgets/video_card/watch_later_button.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
-import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:flutter/material.dart';
@@ -56,9 +55,6 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
     final item = widget.item;
     final floor = widget.floor;
     final isDetail = widget.isDetail;
-    // type archive  ugcSeason
-    // archive 视频/显示发布人
-    // ugcSeason 合集/不显示发布人
 
     DynamicArchiveModel? video = switch (item.type) {
       'DYNAMIC_TYPE_AV' => item.modules.moduleDynamic?.major?.archive,
@@ -81,8 +77,7 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
       padding = EdgeInsets.zero;
     }
 
-    // 获取 bvid 用于稍后再看
-    String? bvid = video.bvid;
+    final bvid = video.bvid;
 
     return MouseRegion(
       onEnter: PlatformUtils.isMobile
@@ -122,7 +117,6 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                             _ => PBadgeType.primary,
                           },
                         ),
-                      // 桌面端悬停显示稍后再看按钮（排除番剧类型）
                       if (!PlatformUtils.isMobile &&
                           bvid != null &&
                           item.type != 'DYNAMIC_TYPE_PGC' &&
@@ -186,12 +180,7 @@ class _VideoSeasonWidgetState extends State<_VideoSeasonWidget> {
                                   Text('${NumUtils.numFormat(stat.danmu)}弹幕'),
                                 ],
                                 const Spacer(),
-                                Image.asset(
-                                  Assets.play,
-                                  width: 50,
-                                  height: 50,
-                                  cacheHeight: 50.cacheSize(context),
-                                ),
+                                const PlayIcon(size: 50),
                               ],
                             ),
                           ),

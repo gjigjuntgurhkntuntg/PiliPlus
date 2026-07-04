@@ -760,18 +760,18 @@ class _AudioPageState extends State<AudioPage> {
   }
 
   void _onDragStart(ThumbDragDetails details) {
-    // do nothing
+    _controller
+      ..isDragging = true
+      ..position.value = Duration(seconds: details.seconds);
   }
 
   void _onDragUpdate(ThumbDragDetails details) {
-    _controller
-      ..isDragging = true
-      ..position.value = details.timeStamp;
+    _controller.position.value = Duration(seconds: details.seconds);
   }
 
-  void _onSeek(Duration value) {
+  void _onSeek(int milliseconds) {
     _controller
-      ..seekTo(value, isSeek: true)
+      ..seekTo(Duration(milliseconds: milliseconds), isSeek: true)
       ..isDragging = false;
   }
 
@@ -783,8 +783,8 @@ class _AudioPageState extends State<AudioPage> {
         : const Color(0x33999999);
     Widget child = Obx(
       () => ProgressBar(
-        progress: _controller.position.value,
-        total: _controller.duration.value,
+        progress: _controller.position.value.inSeconds,
+        total: _controller.duration.value.inSeconds,
         baseBarColor: baseBarColor,
         progressBarColor: primary,
         bufferedBarColor: Colors.transparent,

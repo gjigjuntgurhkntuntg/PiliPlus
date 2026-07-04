@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
@@ -32,10 +32,10 @@ class DynamicsTabPage extends StatefulWidget {
 class _DynamicsTabPageState
     extends CommonPageState<DynamicsTabPage, DynamicsTabController>
     with AutomaticKeepAliveClientMixin, DynMixin {
-  StreamSubscription? _listener;
   late final MainController _mainController = Get.find<MainController>();
 
-  DynamicsController dynamicsController = Get.putOrFind(DynamicsController.new);
+  final dynamicsController = Get.putOrFind(DynamicsController.new);
+
   @override
   late final DynamicsTabController controller;
 
@@ -46,7 +46,8 @@ class _DynamicsTabPageState
       _mainController.navigationBars[0] != NavigationBarType.dynamics &&
       _mainController.selectedIndex.value == 0;
 
-  StreamController<bool>? get _upPanelStream => dynamicsController.upPanelStream;
+  StreamController<bool>? get _upPanelStream =>
+      dynamicsController.upPanelStream;
 
   @override
   bool onNotificationType1(UserScrollNotification notification) {
@@ -103,28 +104,15 @@ class _DynamicsTabPageState
   @override
   void initState() {
     controller = Get.putOrFind(
-      () =>
-          DynamicsTabController(dynamicsType: widget.dynamicsType)
-            ..mid = dynamicsController.mid.value,
+      () => DynamicsTabController(dynamicsType: widget.dynamicsType),
       tag: widget.dynamicsType.name,
     );
     super.initState();
-    if (widget.dynamicsType == DynamicsTabType.up) {
-      _listener = dynamicsController.mid.listen((mid) {
-        if (mid != -1) {
-          controller
-            ..mid = mid
-            ..onReload();
-        }
-      });
-    }
   }
 
-  @override
-  void dispose() {
-    _listener?.cancel();
-    dynamicsController.mid.close();
-    super.dispose();
+  Future<void> onRefresh() {
+    dynamicsController.singleRefresh();
+    return controller.onRefresh();
   }
 
   @override
@@ -133,10 +121,7 @@ class _DynamicsTabPageState
     return onBuild(
       refreshIndicator(
         key: refreshIndicatorKey,
-        onRefresh: () {
-          dynamicsController.queryFollowUp();
-          return controller.onRefresh();
-        },
+        onRefresh: onRefresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           controller: controller.scrollController,

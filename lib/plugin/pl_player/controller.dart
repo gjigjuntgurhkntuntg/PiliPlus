@@ -73,39 +73,39 @@ class PlPlayerController with BlockConfigMixin {
   Player? _videoPlayerController;
   VideoController? _videoController;
 
-  // 添加一个私有静态变量来保存实例
   static PlPlayerController? _instance;
 
-  // 流事件  监听播放状态变化
-  // StreamSubscription? _playerEventSubs;
+  final playerStatus = PlPlayerStatus(.playing);
 
-  /// [playerStatus] has a [status] observable
-  final playerStatus = PlPlayerStatus(PlayerStatus.playing);
+  final Rx<DataStatus> dataStatus = Rx(.none);
 
-  ///
-  final Rx<DataStatus> dataStatus = Rx(DataStatus.none);
+  Duration? seekToPos;
+  bool hasToasted = false;
+  final RxBool isSeeking = false.obs;
 
-  // bool controlsEnabled = false;
-
-  /// 响应数据
-  /// 带有Seconds的变量只在秒数更新时更新，以避免频繁触发重绘
-  // 播放位置
   Duration position = Duration.zero;
   final RxInt positionSeconds = 0.obs;
 
-  /// 进度条位置
+  int get positionInMilliseconds => position.inMilliseconds;
+
   Duration sliderPosition = Duration.zero;
   final RxInt sliderPositionSeconds = 0.obs;
-  // 展示使用
+
   final Rx<Duration> sliderTempPosition = Rx(Duration.zero);
 
   /// 视频时长
   final Rx<Duration> duration = Rx(Duration.zero);
   static const Duration _seekDurationWaitTimeout = Duration(milliseconds: 500);
 
-  /// 视频缓冲
   final Rx<Duration> buffered = Rx(Duration.zero);
   final RxInt bufferedSeconds = 0.obs;
+
+  int durationInMilliseconds = 0;
+
+  void updateDuration(Duration value) {
+    duration.value = value;
+    durationInMilliseconds = value.inMilliseconds;
+  }
 
   int _playerCount = 0;
 
@@ -113,43 +113,30 @@ class PlPlayerController with BlockConfigMixin {
   final RxDouble _playbackSpeed = Pref.playSpeedDefault.obs;
   late final RxDouble _longPressSpeed = Pref.longPressSpeedDefault.obs;
 
-  /// 音量控制条
   final RxDouble volume = RxDouble(
     PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
   );
   final setSystemBrightness = Pref.setSystemBrightness;
 
-  /// 亮度控制条
   final RxDouble brightness = (-1.0).obs;
 
-  /// 是否展示控制条
   final RxBool showControls = false.obs;
 
-  /// 亮度控制条展示/隐藏
   final RxBool showBrightnessStatus = false.obs;
 
-  /// 是否长按倍速
   final RxBool longPressStatus = false.obs;
 
-  /// 屏幕锁 为true时，关闭控制栏
   final RxBool controlsLock = false.obs;
 
-  /// 全屏状态
   final RxBool isFullScreen = false.obs;
-  // 默认投稿视频格式
   bool isLive = false;
 
   bool _isVertical = false;
 
-  /// 视频比例
-  final Rx<VideoFitType> videoFit = Rx(VideoFitType.contain);
+  final Rx<VideoFitType> videoFit = Rx(.contain);
 
-  /// 后台播放
   late final RxBool continuePlayInBackground =
       Pref.continuePlayInBackground.obs;
-
-  ///
-  final RxBool isSliderMoving = false.obs;
 
   bool _autoPlay = false;
 
@@ -225,10 +212,10 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   /// 弹幕开关
-  late final RxBool _enableShowDanmaku = Pref.enableShowDanmaku.obs;
-  late final RxBool _enableShowLiveDanmaku = Pref.enableShowLiveDanmaku.obs;
-  RxBool get enableShowDanmaku =>
-      isLive ? _enableShowLiveDanmaku : _enableShowDanmaku;
+  late final RxBool enableShowDanmaku = Pref.enableShowDanmaku.obs;
+  late final RxBool enableShowLiveDanmaku = Pref.enableShowLiveDanmaku.obs;
+  RxBool get enableShowDanmakuAdaptive =>
+      isLive ? enableShowLiveDanmaku : enableShowDanmaku;
 
   late final bool autoPiP = Pref.autoPiP;
   bool get isPipMode =>
@@ -408,8 +395,28 @@ class PlPlayerController with BlockConfigMixin {
       ? Pref.sliderDuration / 100
       : Pref.sliderDuration * 1000;
 
-  num get sliderScale =>
-      isRelative ? duration.value.inMilliseconds * offset : offset;
+  num get sliderScale => isRelative ? durationInMilliseconds * offset : offset;
+
+  void updateSliderPositionSecond() {
+    final newSecond = sliderPosition.inSeconds;
+    if (sliderPositionSeconds.value != newSecond) {
+      sliderPositionSeconds.value = newSecond;
+    }
+  }
+
+  void updatePositionSecond() {
+    final newSecond = position.inSeconds;
+    if (positionSeconds.value != newSecond) {
+      positionSeconds.value = newSecond;
+    }
+  }
+
+  void updateBufferedSecond() {
+    final newSecond = buffered.value.inSeconds;
+    if (bufferedSeconds.value != newSecond) {
+      bufferedSeconds.value = newSecond;
+    }
+  }
 
   // 播放顺序相关
   late PlayRepeat playRepeat = Pref.playRepeat;
@@ -462,27 +469,6 @@ class PlPlayerController with BlockConfigMixin {
     putSubtitleSettings();
   }
 
-  void updateSliderPositionSecond() {
-    int newSecond = sliderPosition.inSeconds;
-    if (sliderPositionSeconds.value != newSecond) {
-      sliderPositionSeconds.value = newSecond;
-    }
-  }
-
-  void updatePositionSecond() {
-    int newSecond = position.inSeconds;
-    if (positionSeconds.value != newSecond) {
-      positionSeconds.value = newSecond;
-    }
-  }
-
-  void updateBufferedSecond() {
-    int newSecond = buffered.value.inSeconds;
-    if (bufferedSeconds.value != newSecond) {
-      bufferedSeconds.value = newSecond;
-    }
-  }
-
   static PlPlayerController? get instance => _instance;
 
   static bool instanceExists() {
@@ -496,7 +482,6 @@ class PlPlayerController with BlockConfigMixin {
   static PlayCallback? _playCallBack;
 
   static Future<void>? playIfExists() {
-    // await _instance?.play(repeat: repeat, hideControls: hideControls);
     return _playCallBack?.call();
   }
 
@@ -770,14 +755,15 @@ class PlPlayerController with BlockConfigMixin {
         return;
       }
 
-      // 获取视频时长 00:00
-      this.duration.value = duration ?? _videoPlayerController!.state.duration;
-      position = buffered.value = sliderPosition = seekTo ?? Duration.zero;
+      updateDuration(duration ?? _videoPlayerController!.state.duration);
+      position = seekTo ?? Duration.zero;
+      sliderPosition = position;
+      buffered.value = Duration.zero;
       updatePositionSecond();
       updateSliderPositionSecond();
       updateBufferedSecond();
-      // 数据加载完成
-      dataStatus.value = DataStatus.loaded;
+
+      dataStatus.value = .loaded;
 
       if (autoFullScreenFlag && autoEnterFullScreen) {
         triggerFullScreen(status: true);
@@ -914,10 +900,7 @@ class PlPlayerController with BlockConfigMixin {
     int switchGeneration,
   ) async {
     isBuffering.value = false;
-    buffered.value = Duration.zero;
     _heartDuration = 0;
-    position = Duration.zero;
-    // 初始化时清空弹幕，防止上次重叠
     danmakuController?.clear();
 
     var player = _videoPlayerController;
@@ -1061,7 +1044,10 @@ class PlPlayerController with BlockConfigMixin {
       return null;
     }
     if (_videoPlayerController case final ctr? when (ctr.current.isNotEmpty)) {
-      return ctr.open(ctr.current.last.copyWith(start: position), play: true);
+      return ctr.open(
+        ctr.current.last.copyWith(start: ctr.state.position),
+        play: true,
+      );
     }
     if (dataSource.videoSource.isEmpty) {
       SmartDialog.showToast('视频源为空，请重新进入本页面');
@@ -1290,7 +1276,7 @@ class PlPlayerController with BlockConfigMixin {
         duration.value = completedDuration;
         position = completedDuration;
         updatePositionSecond();
-        if (!isSliderMoving.value) {
+        if (!isSeeking.value) {
           sliderPosition = completedDuration;
           updateSliderPositionSecond();
         }
@@ -1344,29 +1330,25 @@ class PlPlayerController with BlockConfigMixin {
         if (_isSwitchingMedia) return;
         position = event;
         updatePositionSecond();
-        if (!isSliderMoving.value) {
+        if (!isSeeking.value) {
           sliderPosition = event;
           updateSliderPositionSecond();
         }
 
-        /// 触发回调事件
         for (final element in _positionListeners) {
           element(event);
         }
-        makeHeartBeat(event.inSeconds);
       }),
-      stream.duration.listen((Duration event) {
-        duration.value = event;
-      }),
-      stream.buffer.listen((Duration event) {
-        buffered.value = event;
+      stream.duration.listen(updateDuration),
+      stream.buffer.listen((Duration buffer) {
+        buffered.value = buffer;
         updateBufferedSecond();
       }),
-      stream.buffering.listen((bool event) {
-        isBuffering.value = event;
+      stream.buffering.listen((bool buffering) {
+        isBuffering.value = buffering;
         videoPlayerServiceHandler?.onStatusChange(
           playerStatus.value,
-          event,
+          buffering,
           isLive,
         );
       }),
@@ -1452,16 +1434,6 @@ class PlPlayerController with BlockConfigMixin {
           // SmartDialog.showToast('视频加载错误, $event');
         }
       }),
-      // controllerStream.volume.listen((event) {
-      //   if (!mute.value && _volumeBeforeMute != event) {
-      //     _volumeBeforeMute = event / 100;
-      //   }
-      // }),
-      // 媒体通知监听
-      if (videoPlayerServiceHandler != null)
-        positionSeconds.listen((int event) {
-          videoPlayerServiceHandler!.onPositionChange(Duration(seconds: event));
-        }),
     ];
   }
 
@@ -1493,9 +1465,6 @@ class PlPlayerController with BlockConfigMixin {
 
   /// 跳转至指定位置
   Future<void> seekTo(Duration position, {bool isSeek = true}) async {
-    // if (position >= duration.value) {
-    //   position = duration.value - const Duration(milliseconds: 100);
-    // }
     if (_playerCount == 0) {
       return;
     }
@@ -1680,42 +1649,22 @@ class PlPlayerController with BlockConfigMixin {
   void hideTaskControls() {
     _timer?.cancel();
     _timer = Timer(showControlDuration, () {
-      if (!isSliderMoving.value && !tripling) {
+      if (!isSeeking.value && !tripling) {
         controls = false;
       }
       _timer = null;
     });
   }
 
-  /// 调整播放时间
-  void onChangedSlider(int v) {
-    sliderPosition = Duration(seconds: v);
-    updateSliderPositionSecond();
-  }
-
-  void onChangedSliderStart([Duration? value]) {
-    if (value != null) {
-      sliderTempPosition.value = value;
-    }
-    isSliderMoving.value = true;
-  }
-
-  bool? cancelSeek;
-  bool? hasToast;
-
-  void onUpdatedSliderProgress(Duration value) {
-    sliderTempPosition.value = value;
-    sliderPosition = value;
-    updateSliderPositionSecond();
-  }
-
-  void onChangedSliderEnd() {
-    if (cancelSeek != true) {
+  void onSeekEnd() {
+    if (seekToPos != null) {
       feedBack();
     }
-    cancelSeek = null;
-    hasToast = null;
-    isSliderMoving.value = false;
+    if (showSeekPreview) {
+      showPreview.value = false;
+    }
+    hasToasted = false;
+    isSeeking.value = false;
     hideTaskControls();
   }
 
@@ -1816,13 +1765,13 @@ class PlPlayerController with BlockConfigMixin {
     }
   }
 
-  bool get _isCompleted =>
+  bool get isCompleted =>
       videoPlayerController!.state.completed ||
-      (duration.value - position).inMilliseconds <= 50;
+      durationInMilliseconds - positionInMilliseconds <= 50;
 
   // 双击播放、暂停
   Future<void> onDoubleTapCenter() async {
-    if (!isLive && _isCompleted) {
+    if (!isLive && isCompleted) {
       await play(repeat: true);
     } else {
       videoPlayerController!.playOrPause();
@@ -1841,11 +1790,11 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   void onForward(Duration duration) {
-    onForwardBackward(position + duration);
+    onForwardBackward(videoPlayerController!.state.position + duration);
   }
 
   void onBackward(Duration duration) {
-    onForwardBackward(position - duration);
+    onForwardBackward(videoPlayerController!.state.position - duration);
   }
 
   void onForwardBackward(Duration duration) {
@@ -2220,7 +2169,7 @@ class PlPlayerController with BlockConfigMixin {
   Future<void> takeScreenshot() async {
     SmartDialog.showToast('截图中');
     final time = DurationUtils.formatDuration(
-      position.inMilliseconds / 1000,
+      positionInMilliseconds / 1000,
     ).replaceAll(':', '-');
     final image = await videoPlayerController?.screenshot();
     if (image != null) {

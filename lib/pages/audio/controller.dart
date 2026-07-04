@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/grpc/audio.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
     show
@@ -90,8 +91,8 @@ class AudioController extends GetxController
   late int cacheAudioQa;
 
   late bool isDragging = false;
-  final Rx<Duration> position = Duration.zero.obs;
-  final Rx<Duration> duration = Duration.zero.obs;
+  final Rx<Duration> position = Rx(Duration.zero);
+  final Rx<Duration> duration = Rx(Duration.zero);
 
   late final AnimationController animController;
 
@@ -1967,62 +1968,45 @@ class AudioController extends GetxController
         : '${HttpString.baseUrl}/audio/au$oid';
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => SimpleDialog(
         clipBehavior: Clip.hardEdge,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              dense: true,
-              title: const Text(
-                '复制链接',
-                style: TextStyle(fontSize: 14),
-              ),
-              onTap: () {
+        children: [
+          DialogOption(
+            child: const Text('复制链接', style: TextStyle(fontSize: 14)),
+            onPressed: () {
+              Get.back();
+              Utils.copyText(audioUrl);
+            },
+          ),
+          DialogOption(
+            child: const Text('其它app打开', style: TextStyle(fontSize: 14)),
+            onPressed: () {
+              Get.back();
+              PageUtils.launchURL(audioUrl);
+            },
+          ),
+          if (PlatformUtils.isMobile)
+            DialogOption(
+              child: const Text('分享视频', style: TextStyle(fontSize: 14)),
+              onPressed: () {
                 Get.back();
-                Utils.copyText(audioUrl);
+                if (audioItem.value case DetailItem(
+                  :final arc,
+                  :final owner,
+                )) {
+                  ShareUtils.shareText(
+                    '${arc.title} '
+                    'UP主: ${owner.name}'
+                    ' - $audioUrl',
+                  );
+                }
               },
             ),
-            ListTile(
-              dense: true,
-              title: const Text(
-                '其它app打开',
-                style: TextStyle(fontSize: 14),
-              ),
-              onTap: () {
-                Get.back();
-                PageUtils.launchURL(audioUrl);
-              },
-            ),
-            if (PlatformUtils.isMobile)
-              ListTile(
-                dense: true,
-                title: const Text(
-                  '分享视频',
-                  style: TextStyle(fontSize: 14),
-                ),
-                onTap: () {
-                  Get.back();
-                  if (audioItem.value case DetailItem(
-                    :final arc,
-                    :final owner,
-                  )) {
-                    ShareUtils.shareText(
-                      '${arc.title} '
-                      'UP主: ${owner.name}'
-                      ' - $audioUrl',
-                    );
-                  }
-                },
-              ),
-            ListTile(
-              dense: true,
-              title: const Text(
-                '分享至动态',
-                style: TextStyle(fontSize: 14),
-              ),
-              onTap: () {
+          if (isLogin)
+            DialogOption(
+              child: const Text('分享至动态', style: TextStyle(fontSize: 14)),
+              onPressed: () {
                 Get.back();
                 if (audioItem.value case DetailItem(
                   :final arc,
@@ -2043,40 +2027,35 @@ class AudioController extends GetxController
                 }
               },
             ),
-            if (isUgc)
-              ListTile(
-                dense: true,
-                title: const Text(
-                  '分享至消息',
-                  style: TextStyle(fontSize: 14),
-                ),
-                onTap: () {
-                  Get.back();
-                  if (audioItem.value case DetailItem(
-                    :final arc,
-                    :final owner,
-                  )) {
-                    try {
-                      PageUtils.pmShare(
-                        context,
-                        content: {
-                          "id": oid.toString(),
-                          "title": arc.title,
-                          "headline": arc.title,
-                          "source": 5,
-                          "thumb": arc.cover,
-                          "author": owner.name,
-                          "author_id": owner.mid.toString(),
-                        },
-                      );
-                    } catch (e) {
-                      SmartDialog.showToast(e.toString());
-                    }
+          if (isUgc && isLogin)
+            DialogOption(
+              child: const Text('分享至消息', style: TextStyle(fontSize: 14)),
+              onPressed: () {
+                Get.back();
+                if (audioItem.value case DetailItem(
+                  :final arc,
+                  :final owner,
+                )) {
+                  try {
+                    PageUtils.pmShare(
+                      context,
+                      content: {
+                        "id": oid.toString(),
+                        "title": arc.title,
+                        "headline": arc.title,
+                        "source": 5,
+                        "thumb": arc.cover,
+                        "author": owner.name,
+                        "author_id": owner.mid.toString(),
+                      },
+                    );
+                  } catch (e) {
+                    SmartDialog.showToast(e.toString());
                   }
-                },
-              ),
-          ],
-        ),
+                }
+              },
+            ),
+        ],
       ),
     );
   }
@@ -2592,14 +2571,14 @@ class AudioController extends GetxController
   BlockConfigMixin get blockConfig => this;
 
   @override
-  int get currPosInMilliseconds => position.value.inMilliseconds;
+  int get currPosInMilliseconds => player?.state.position.inMilliseconds ?? 0;
+
+  @override
+  int? get timeLength => player?.state.duration.inMilliseconds ?? 0;
 
   @override
   Future<void>? seekTo(Duration duration, {required bool isSeek}) =>
       onSeek(duration);
-
-  @override
-  int? get timeLength => duration.value.inMilliseconds;
 
   @override
   bool get autoPlay => true;
