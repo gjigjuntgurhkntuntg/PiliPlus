@@ -2008,17 +2008,62 @@ class VideoDetailController extends GetxController
     }
   }
 
+  int _currentVideoDurationSeconds({Duration? fallbackDuration}) {
+    final timeLength = data.timeLength;
+    if (timeLength != null && timeLength > 0) {
+      return (timeLength / Duration.millisecondsPerSecond).ceil();
+    }
+    if (fallbackDuration != null && fallbackDuration > Duration.zero) {
+      final seconds = fallbackDuration.inSeconds;
+      return seconds > 0 ? seconds : 1;
+    }
+    return 0;
+  }
+
+  int _heartBeatProgressSecondsForPosition(Duration position) {
+    final timeLength = data.timeLength;
+    if (plPlayerController.playerStatus.isCompleted ||
+        (timeLength != null &&
+            timeLength > 0 &&
+            (timeLength - position.inMilliseconds).abs() <= 1000)) {
+      return -1;
+    }
+    return position.inSeconds;
+  }
+
+  int _listProgressSecondsForPosition(Duration position) {
+    return plPlayerController.playerStatus.isCompleted
+        ? -1
+        : position.inSeconds;
+  }
+
+  void syncCompletedProgressForCurrentVideo({Duration? fallbackDuration}) {
+    if (sourceType == SourceType.normal) return;
+
+    final currentDuration = _currentVideoDurationSeconds(
+      fallbackDuration: fallbackDuration,
+    );
+    if (currentDuration <= 0) return;
+
+    updateProgressForVideo(
+      videoAid: aid,
+      videoBvid: bvid,
+      videoCid: cid.value,
+      progressSeconds: -1,
+      videoDuration: currentDuration,
+    );
+  }
+
   void makeHeartBeat() {
     if (plPlayerController.enableHeart &&
         !plPlayerController.playerStatus.isCompleted &&
         playedTime != null) {
       try {
+        final heartBeatProgressSeconds = _heartBeatProgressSecondsForPosition(
+          playedTime!,
+        );
         plPlayerController.makeHeartBeat(
-          data.timeLength != null
-              ? (data.timeLength! - playedTime!.inMilliseconds).abs() <= 1000
-                    ? -1
-                    : playedTime!.inSeconds
-              : playedTime!.inSeconds,
+          heartBeatProgressSeconds,
           type: HeartBeatType.completed,
           isManual: true,
           aid: aid,
@@ -2036,8 +2081,10 @@ class VideoDetailController extends GetxController
           final currentAid = aid;
           final currentBvid = bvid;
           final currentCid = cid.value;
-          final currentDuration = data.timeLength ?? 0;
-          final progressSeconds = playedTime!.inSeconds;
+          final currentDuration = _currentVideoDurationSeconds(
+            fallbackDuration: playedTime,
+          );
+          final progressSeconds = _listProgressSecondsForPosition(playedTime!);
 
           if (kDebugMode) {
             debugPrint(
@@ -2070,8 +2117,10 @@ class VideoDetailController extends GetxController
       final currentAid = aid;
       final currentBvid = bvid;
       final currentCid = cid.value;
-      final currentDuration = data.timeLength ?? 0;
-      final progressSeconds = playedTime.inSeconds;
+      final currentDuration = _currentVideoDurationSeconds(
+        fallbackDuration: playedTime,
+      );
+      final progressSeconds = _listProgressSecondsForPosition(playedTime);
 
       if (kDebugMode) {
         debugPrint(
@@ -2334,8 +2383,10 @@ class VideoDetailController extends GetxController
       final currentAid = aid;
       final currentBvid = bvid;
       final currentCid = cid.value;
-      final currentDuration = data.timeLength ?? 0;
-      final progressSeconds = playedTime.inSeconds;
+      final currentDuration = _currentVideoDurationSeconds(
+        fallbackDuration: playedTime,
+      );
+      final progressSeconds = _listProgressSecondsForPosition(playedTime);
 
       if (kDebugMode) {
         debugPrint(

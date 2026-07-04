@@ -16,7 +16,6 @@ import 'package:PiliPlus/common/widgets/svg/play_icon.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart' as pgc;
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
-import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/models_new/video/video_detail/ugc_season.dart';
@@ -279,6 +278,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           : videoDetailController.pgcType,
       videoType: videoDetailController.videoType,
     );
+    videoDetailController.syncCompletedProgressForCurrentVideo(
+      fallbackDuration: controller.videoPlayerController?.state.duration,
+    );
   }
 
   void _scheduleCompletedConsume() {
@@ -429,17 +431,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         : Duration(milliseconds: videoDetailController.data.timeLength ?? 0);
     videoDetailController.playedTime = completedDuration;
     _syncCompletedProgress();
-    final timeLength = videoDetailController.data.timeLength;
-    if (videoDetailController.sourceType != SourceType.normal &&
-        timeLength != null) {
-      videoDetailController.updateProgressForVideo(
-        videoAid: videoDetailController.aid,
-        videoBvid: videoDetailController.bvid,
-        videoCid: videoDetailController.cid.value,
-        progressSeconds: -1,
-        videoDuration: timeLength,
-      );
-    }
     if (kDebugMode) {
       debugPrint(
         '[VideoPage] persist completed progress before close: $reason',
