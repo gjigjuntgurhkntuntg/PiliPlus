@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/avatars.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
@@ -48,6 +49,7 @@ class UserInfoCard extends StatelessWidget {
     required this.card,
     required this.images,
     required this.relation,
+    required this.isFollowLoading,
     required this.onFollow,
     this.live,
     this.silence,
@@ -61,6 +63,7 @@ class UserInfoCard extends StatelessWidget {
 
   final bool isOwner;
   final int relation;
+  final bool isFollowLoading;
   final SpaceCard card;
   final SpaceImages images;
   final VoidCallback onFollow;
@@ -447,7 +450,7 @@ class UserInfoCard extends StatelessWidget {
             ),
           Expanded(
             child: FilledButton.tonal(
-              onPressed: onFollow,
+              onPressed: isFollowLoading ? null : onFollow,
               style: FilledButton.styleFrom(
                 backgroundColor: relation != 0
                     ? colorScheme.onInverseSurface
@@ -455,38 +458,41 @@ class UserInfoCard extends StatelessWidget {
                 tapTargetSize: .padded,
                 visualDensity: const VisualDensity(vertical: -1.8),
               ),
-              child: Text.rich(
-                style: TextStyle(
-                  color: relation != 0 ? colorScheme.outline : null,
-                ),
-                TextSpan(
-                  children: [
-                    if (relation != 0 && relation != 128) ...[
-                      WidgetSpan(
-                        alignment: .middle,
-                        child: Icon(
-                          Icons.sort,
-                          size: 16,
-                          color: colorScheme.outline,
+              child: LoadingButtonChild(
+                isLoading: isFollowLoading,
+                child: Text.rich(
+                  style: TextStyle(
+                    color: relation != 0 ? colorScheme.outline : null,
+                  ),
+                  TextSpan(
+                    children: [
+                      if (relation != 0 && relation != 128) ...[
+                        WidgetSpan(
+                          alignment: .middle,
+                          child: Icon(
+                            Icons.sort,
+                            size: 16,
+                            color: colorScheme.outline,
+                          ),
                         ),
+                        const TextSpan(text: ' '),
+                      ],
+                      TextSpan(
+                        text: isOwner
+                            ? '编辑资料'
+                            : switch (relation) {
+                                0 => '关注',
+                                1 => '悄悄关注',
+                                2 => '已关注',
+                                // 3 => '回关',
+                                4 || 6 => '已互关',
+                                128 => '移除黑名单',
+                                -10 => '特别关注', // 该状态码并不是官方状态码
+                                _ => relation.toString(),
+                              },
                       ),
-                      const TextSpan(text: ' '),
                     ],
-                    TextSpan(
-                      text: isOwner
-                          ? '编辑资料'
-                          : switch (relation) {
-                              0 => '关注',
-                              1 => '悄悄关注',
-                              2 => '已关注',
-                              // 3 => '回关',
-                              4 || 6 => '已互关',
-                              128 => '移除黑名单',
-                              -10 => '特别关注', // 该状态码并不是官方状态码
-                              _ => relation.toString(),
-                            },
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/models_new/follow/list.dart';
 import 'package:PiliPlus/pages/share/view.dart' show UserModel;
@@ -26,23 +27,36 @@ class FollowItem extends StatelessWidget {
     Widget? followBtn;
     if (isOwner) {
       final isFollow = item.attribute != -1;
-      followBtn = FilledButton.tonal(
-        onPressed: () => RequestUtils.actionRelationMod(
-          context: context,
-          mid: item.mid,
-          isFollow: isFollow,
-          afterMod: afterMod,
-        ),
-        style: FilledButton.styleFrom(
-          visualDensity: .compact,
-          tapTargetSize: .shrinkWrap,
-          padding: const .symmetric(horizontal: 15),
-          foregroundColor: isFollow ? colorScheme.outline : null,
-          backgroundColor: isFollow ? colorScheme.onInverseSurface : null,
-        ),
-        child: Text(
-          '${isFollow ? '已' : ''}关注',
-          style: const TextStyle(fontSize: 12),
+      bool isLoading = false;
+      followBtn = StatefulBuilder(
+        builder: (context, setState) => FilledButton.tonal(
+          onPressed: isLoading
+              ? null
+              : () => RequestUtils.actionRelationMod(
+                  context: context,
+                  mid: item.mid,
+                  isFollow: isFollow,
+                  afterMod: afterMod,
+                  requestLoading: (value) {
+                    if (context.mounted) {
+                      setState(() => isLoading = value);
+                    }
+                  },
+                ),
+          style: FilledButton.styleFrom(
+            visualDensity: .compact,
+            tapTargetSize: .shrinkWrap,
+            padding: const .symmetric(horizontal: 15),
+            foregroundColor: isFollow ? colorScheme.outline : null,
+            backgroundColor: isFollow ? colorScheme.onInverseSurface : null,
+          ),
+          child: LoadingButtonChild(
+            isLoading: isLoading,
+            child: Text(
+              '${isFollow ? '已' : ''}关注',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
         ),
       );
     }

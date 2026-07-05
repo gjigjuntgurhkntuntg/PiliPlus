@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart'
     show RichTextType;
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show ReplyInfo;
@@ -209,18 +210,26 @@ class _ReplyPageState extends CommonRichTextPubPageState<ReplyPage> {
             ),
             const Spacer(),
             Obx(
-              () => FilledButton.tonal(
-                onPressed: enablePublish.value ? onPublishThrottle : null,
-                style: FilledButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
+              () {
+                final loading = isPublishing.value;
+                return FilledButton.tonal(
+                  onPressed: enablePublish.value && !loading
+                      ? onPublishThrottle
+                      : null,
+                  style: FilledButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    visualDensity: VisualDensity.compact,
                   ),
-                  visualDensity: VisualDensity.compact,
-                ),
-                child: const Text('发送'),
-              ),
+                  child: LoadingButtonChild(
+                    isLoading: loading,
+                    child: const Text('发送'),
+                  ),
+                );
+              },
             ),
           ],
         ),

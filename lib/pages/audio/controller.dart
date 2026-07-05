@@ -23,7 +23,7 @@ import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart'
-    show FavMixin;
+    show FavMixin, IntroAction;
 import 'package:PiliPlus/pages/dynamics_repost/view.dart';
 import 'package:PiliPlus/pages/main_reply/view.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
@@ -46,6 +46,7 @@ import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/loading_action_mixin.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -68,6 +69,7 @@ import 'package:path/path.dart' as path;
 class AudioController extends GetxController
     with
         GetTickerProviderStateMixin,
+        LoadingActionMixin<IntroAction>,
         TripleMixin,
         FavMixin,
         BlockConfigMixin,
@@ -1842,65 +1844,69 @@ class AudioController extends GetxController
 
   @override
   Future<void> actionLikeVideo() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final newVal = !hasLike.value;
-    final res = await AudioGrpc.audioThumbUp(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-      type: newVal
-          ? ThumbUpReq_ThumbType.LIKE
-          : ThumbUpReq_ThumbType.CANCEL_LIKE,
-    );
-    if (res case Success(:final response)) {
-      hasLike.value = newVal;
-      try {
-        audioItem.value!.stat
-          ..hasLike_7 = newVal
-          ..like += newVal ? 1 : -1;
-        audioItem.refresh();
-      } catch (_) {}
-      SmartDialog.showToast(response.message);
-    } else {
-      res.toast();
-    }
+    await runWithActionLoading(IntroAction.like, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
+      }
+      final newVal = !hasLike.value;
+      final res = await AudioGrpc.audioThumbUp(
+        oid: oid,
+        subId: subId,
+        itemType: itemType,
+        type: newVal
+            ? ThumbUpReq_ThumbType.LIKE
+            : ThumbUpReq_ThumbType.CANCEL_LIKE,
+      );
+      if (res case Success(:final response)) {
+        hasLike.value = newVal;
+        try {
+          audioItem.value!.stat
+            ..hasLike_7 = newVal
+            ..like += newVal ? 1 : -1;
+          audioItem.refresh();
+        } catch (_) {}
+        SmartDialog.showToast(response.message);
+      } else {
+        res.toast();
+      }
+    });
   }
 
   @override
   Future<void> actionTriple() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final res = await AudioGrpc.audioTripleLike(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-    );
-    if (res case Success(:final response)) {
-      hasLike.value = true;
-      if (response.coinOk && !hasCoin) {
-        coinNum.value = 2;
-        GlobalData().afterCoin(2);
-        try {
-          audioItem.value!.stat
-            ..hasCoin_8 = true
-            ..coin += 2;
-          audioItem.refresh();
-        } catch (_) {}
+    await runWithActionLoading(IntroAction.triple, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
       }
-      hasFav.value = true;
-      if (!hasCoin) {
-        SmartDialog.showToast('投币失败');
+      final res = await AudioGrpc.audioTripleLike(
+        oid: oid,
+        subId: subId,
+        itemType: itemType,
+      );
+      if (res case Success(:final response)) {
+        hasLike.value = true;
+        if (response.coinOk && !hasCoin) {
+          coinNum.value = 2;
+          GlobalData().afterCoin(2);
+          try {
+            audioItem.value!.stat
+              ..hasCoin_8 = true
+              ..coin += 2;
+            audioItem.refresh();
+          } catch (_) {}
+        }
+        hasFav.value = true;
+        if (!hasCoin) {
+          SmartDialog.showToast('投币失败');
+        } else {
+          SmartDialog.showToast('三连成功');
+        }
       } else {
-        SmartDialog.showToast('三连成功');
+        res.toast();
       }
-    } else {
-      res.toast();
-    }
+    });
   }
 
   @override
@@ -1908,34 +1914,36 @@ class AudioController extends GetxController
 
   @override
   Future<void> onPayCoin(int coin, bool coinWithLike) async {
-    final res = await AudioGrpc.audioCoinAdd(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-      num: coin,
-      thumbUp: coinWithLike,
-    );
-    if (res.isSuccess) {
-      final updateLike = !hasLike.value && coinWithLike;
-      if (updateLike) {
-        hasLike.value = true;
-      }
-      coinNum.value += coin;
-      try {
-        final stat = audioItem.value!.stat
-          ..hasCoin_8 = true
-          ..coin += coin;
+    await runWithActionLoading(IntroAction.coin, () async {
+      final res = await AudioGrpc.audioCoinAdd(
+        oid: oid,
+        subId: subId,
+        itemType: itemType,
+        num: coin,
+        thumbUp: coinWithLike,
+      );
+      if (res.isSuccess) {
+        final updateLike = !hasLike.value && coinWithLike;
         if (updateLike) {
-          stat
-            ..hasLike_7 = true
-            ..like += 1;
+          hasLike.value = true;
         }
-        audioItem.refresh();
-      } catch (_) {}
-      GlobalData().afterCoin(coin);
-    } else {
-      res.toast();
-    }
+        coinNum.value += coin;
+        try {
+          final stat = audioItem.value!.stat
+            ..hasCoin_8 = true
+            ..coin += coin;
+          if (updateLike) {
+            stat
+              ..hasLike_7 = true
+              ..like += 1;
+          }
+          audioItem.refresh();
+        } catch (_) {}
+        GlobalData().afterCoin(coin);
+      } else {
+        res.toast();
+      }
+    });
   }
 
   @override

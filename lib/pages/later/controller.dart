@@ -272,31 +272,44 @@ mixin BaseLaterController
                 TextButton(
                   onPressed: () async {
                     Get.back();
-                    final res = await UserHttp.toViewDel(aids: aid.toString());
-                    if (res.isSuccess) {
-                      // 如果勾选了删除缓存，同时删除离线缓存
-                      if (deleteCache &&
-                          item.cid != null &&
-                          Get.isRegistered<DownloadService>()) {
-                        final downloadService = Get.find<DownloadService>();
-                        final downloadEntry = downloadService.downloadList
-                            .firstWhereOrNull((e) => e.cid == item.cid);
-                        if (downloadEntry != null) {
-                          await downloadService.deleteDownload(
-                            entry: downloadEntry,
-                            removeList: true,
-                            downloadNext: false,
-                          );
-                          SmartDialog.showToast('已删除稍后再看和离线缓存');
+                    SmartDialog.showLoading(msg: '请求中');
+                    bool deletedCache = false;
+                    try {
+                      final res = await UserHttp.toViewDel(
+                        aids: aid.toString(),
+                      );
+                      if (res.isSuccess) {
+                        // 如果勾选了删除缓存，同时删除离线缓存
+                        if (deleteCache &&
+                            item.cid != null &&
+                            Get.isRegistered<DownloadService>()) {
+                          final downloadService = Get.find<DownloadService>();
+                          final downloadEntry = downloadService.downloadList
+                              .firstWhereOrNull((e) => e.cid == item.cid);
+                          if (downloadEntry != null) {
+                            await downloadService.deleteDownload(
+                              entry: downloadEntry,
+                              removeList: true,
+                              downloadNext: false,
+                            );
+                            deletedCache = true;
+                          }
                         }
+                        loadingState
+                          ..value.data!.removeAt(index)
+                          ..refresh();
+                        updateCount?.call(1);
                       }
-                      loadingState
-                        ..value.data!.removeAt(index)
-                        ..refresh();
-                      updateCount?.call(1);
-                    }
-                    if (!deleteCache || !hasCache) {
-                      res.toast();
+                      SmartDialog.dismiss();
+                      if (deletedCache) {
+                        SmartDialog.showToast('已删除稍后再看和离线缓存');
+                      }
+                      if (!deleteCache || !hasCache) {
+                        res.toast();
+                      }
+                    } catch (_) {
+                      SmartDialog.dismiss();
+                      rethrow;
                     }
                   },
                   child: const Text('确认移除'),
@@ -375,19 +388,27 @@ class LaterController extends MultiSelectController<LaterData, LaterItemModel>
       title: const Text('确认'),
       content: Text(content),
       onConfirm: () async {
-        final res = await UserHttp.toViewClear(cleanType);
-        if (res.isSuccess) {
-          onReload();
-          final restTypes = List<LaterViewType>.from(LaterViewType.values)
-            ..remove(laterViewType);
-          for (final item in restTypes) {
-            try {
-              Get.find<LaterController>(tag: item.type.toString()).onReload();
-            } catch (_) {}
+        SmartDialog.showLoading(msg: '请求中');
+        try {
+          final res = await UserHttp.toViewClear(cleanType);
+          if (res.isSuccess) {
+            onReload();
+            final restTypes = List<LaterViewType>.from(LaterViewType.values)
+              ..remove(laterViewType);
+            for (final item in restTypes) {
+              try {
+                Get.find<LaterController>(tag: item.type.toString()).onReload();
+              } catch (_) {}
+            }
+            SmartDialog.dismiss();
+            SmartDialog.showToast('已清空');
+          } else {
+            SmartDialog.dismiss();
+            res.toast();
           }
-          SmartDialog.showToast('已清空');
-        } else {
-          res.toast();
+        } catch (_) {
+          SmartDialog.dismiss();
+          rethrow;
         }
       },
     );

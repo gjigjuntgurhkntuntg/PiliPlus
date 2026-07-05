@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/draggable_scrollable_sheet.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/time_picker.dart';
 import 'package:PiliPlus/http/dynamics.dart';
@@ -360,18 +361,26 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
         Align(
           alignment: Alignment.centerRight,
           child: Obx(
-            () => FilledButton.tonal(
-              onPressed: enablePublish.value ? onPublishThrottle : null,
-              style: FilledButton.styleFrom(
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
+            () {
+              final loading = isPublishing.value;
+              return FilledButton.tonal(
+                onPressed: enablePublish.value && !loading
+                    ? onPublishThrottle
+                    : null,
+                style: FilledButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  visualDensity: VisualDensity.compact,
                 ),
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(_publishTime.value == null ? '发布' : '定时发布'),
-            ),
+                child: LoadingButtonChild(
+                  isLoading: loading,
+                  child: Text(_publishTime.value == null ? '发布' : '定时发布'),
+                ),
+              );
+            },
           ),
         ),
       ],

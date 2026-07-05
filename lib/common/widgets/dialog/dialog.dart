@@ -1,4 +1,8 @@
-import 'package:flutter/material.dart';
+import 'dart:async' show FutureOr;
+
+import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
+import 'package:flutter/material.dart' hide PopScope;
 import 'package:get/get.dart';
 
 Future<bool> showConfirmDialog({
@@ -32,6 +36,67 @@ Future<bool> showConfirmDialog({
             ),
           ],
         ),
+      ) ??
+      false;
+}
+
+Future<bool> showAsyncConfirmDialog({
+  required BuildContext context,
+  required Widget title,
+  required FutureOr<void> Function() onConfirm,
+  Widget? content,
+  String cancelText = '取消',
+  String confirmText = '确认',
+}) async {
+  return await showDialog<bool>(
+        barrierDismissible: false,
+        context: context,
+        builder: (context) {
+          bool isLoading = false;
+          return StatefulBuilder(
+            builder: (context, setState) => PopScope(
+              canPop: !isLoading,
+              onPopInvokedWithResult: (_, _) {},
+              child: AlertDialog(
+                title: title,
+                content: content,
+                actions: [
+                  TextButton(
+                    onPressed: isLoading ? null : () => Get.back(result: false),
+                    child: Text(
+                      cancelText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            setState(() => isLoading = true);
+                            bool completed = false;
+                            try {
+                              await onConfirm();
+                              completed = true;
+                              if (context.mounted) {
+                                Get.back(result: true);
+                              }
+                            } finally {
+                              if (!completed && context.mounted) {
+                                setState(() => isLoading = false);
+                              }
+                            }
+                          },
+                    child: isLoading
+                        ? buttonLoadingIndicator()
+                        : Text(confirmText),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ) ??
       false;
 }

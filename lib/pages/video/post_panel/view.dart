@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
+import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -275,25 +276,17 @@ class _PostPanelState extends State<PostPanel>
           bottom: kFloatingActionButtonMargin + bottom,
           child: FloatingActionButton(
             tooltip: '提交',
-            onPressed: () => showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
+            onPressed: () async {
+              final submitted = await showAsyncConfirmDialog(
+                context: context,
                 title: const Text('确定无误再提交'),
-                actions: [
-                  TextButton(
-                    onPressed: Get.back,
-                    child: Text(
-                      '取消',
-                      style: TextStyle(color: theme.colorScheme.outline),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _onPost,
-                    child: const Text('确定提交'),
-                  ),
-                ],
-              ),
-            ),
+                confirmText: '确定提交',
+                onConfirm: _onPost,
+              );
+              if (submitted && list.isEmpty && context.mounted) {
+                Get.back();
+              }
+            },
             child: const Icon(Icons.check),
           ),
         ),
@@ -302,7 +295,6 @@ class _PostPanelState extends State<PostPanel>
   }
 
   Future<void> _onPost() async {
-    Get.back();
     final res = await SponsorBlock.postSkipSegments(
       bvid: videoDetailController.bvid,
       cid: videoDetailController.cid.value,
@@ -311,7 +303,6 @@ class _PostPanelState extends State<PostPanel>
     );
 
     if (res case Success(:final response)) {
-      Get.back();
       SmartDialog.showToast('提交成功');
       list.clear();
       videoDetailController.handleSBData(response);

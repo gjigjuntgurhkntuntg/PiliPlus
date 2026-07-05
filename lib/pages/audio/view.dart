@@ -14,6 +14,8 @@ import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
+import 'package:PiliPlus/pages/common/common_intro_controller.dart'
+    show IntroAction;
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
     show showPlayerVolumeDialog;
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/action_item.dart';
@@ -683,6 +685,9 @@ class _AudioPageState extends State<AudioPage> {
               ),
               selectStatus: _controller.hasLike.value,
               semanticsLabel: '点赞',
+              isLoading:
+                  _controller.isActionLoading(IntroAction.like) ||
+                  _controller.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(audioItem.stat.like),
               onStartTriple: _controller.onStartTriple,
               onCancelTriple: _controller.onCancelTriple,
@@ -696,6 +701,9 @@ class _AudioPageState extends State<AudioPage> {
               onTap: _controller.actionCoinVideo,
               selectStatus: _controller.hasCoin,
               semanticsLabel: '投币',
+              isLoading:
+                  _controller.isActionLoading(IntroAction.coin) ||
+                  _controller.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(
                 audioItem.stat.coin,
               ),
@@ -715,6 +723,9 @@ class _AudioPageState extends State<AudioPage> {
               ),
               selectStatus: _controller.hasFav.value,
               semanticsLabel: '收藏',
+              isLoading:
+                  _controller.isActionLoading(IntroAction.favorite) ||
+                  _controller.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(
                 audioItem.stat.favourite,
               ),

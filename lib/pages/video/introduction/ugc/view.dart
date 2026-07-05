@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/common/widgets/selectable_text.dart';
@@ -15,6 +16,7 @@ import 'package:PiliPlus/models_new/video/video_ai_conclusion/model_result.dart'
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/staff.dart';
 import 'package:PiliPlus/models_new/video/video_tag/data.dart';
+import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
@@ -490,8 +492,13 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
     return Obx(
       () {
         int attr = introController.followStatus.value.attribute ?? 0;
+        final isLoading = introController.isActionLoading(
+          IntroAction.relation,
+        );
         return TextButton(
-          onPressed: () => introController.actionRelationMod(context),
+          onPressed: isLoading
+              ? null
+              : () => introController.actionRelationMod(context),
           style: TextButton.styleFrom(
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: const VisualDensity(vertical: -2.8),
@@ -502,16 +509,19 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
                 ? t.colorScheme.onInverseSurface
                 : t.colorScheme.secondaryContainer,
           ),
-          child: Text(
-            switch (attr) {
-              1 => '悄悄关注',
-              2 => '已关注',
-              4 || 6 => '已互关',
-              128 => '已拉黑',
-              -10 => '特别关注',
-              _ => ' 关注 ',
-            },
-            style: const TextStyle(fontSize: 13),
+          child: LoadingButtonChild(
+            isLoading: isLoading,
+            child: Text(
+              switch (attr) {
+                1 => '悄悄关注',
+                2 => '已关注',
+                4 || 6 => '已互关',
+                128 => '已拉黑',
+                -10 => '特别关注',
+                _ => ' 关注 ',
+              },
+              style: const TextStyle(fontSize: 13),
+            ),
           ),
         );
       },
@@ -536,6 +546,9 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
               selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
               selectStatus: introController.hasLike.value,
               semanticsLabel: '点赞',
+              isLoading:
+                  introController.isActionLoading(IntroAction.like) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: !isLoading
                   ? NumUtils.numFormat(videoDetail.stat!.like)
                   : null,
@@ -547,11 +560,10 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
             () => ActionItem(
               icon: const Icon(FontAwesomeIcons.thumbsDown),
               selectIcon: const Icon(FontAwesomeIcons.solidThumbsDown),
-              onTap: () => introController.handleAction(
-                introController.actionDislikeVideo,
-              ),
+              onTap: introController.actionDislikeVideo,
               selectStatus: introController.hasDislike.value,
               semanticsLabel: '点踩',
+              isLoading: introController.isActionLoading(IntroAction.dislike),
               text: "点踩",
             ),
           ),
@@ -563,6 +575,9 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
               onTap: introController.actionCoinVideo,
               selectStatus: introController.hasCoin,
               semanticsLabel: '投币',
+              isLoading:
+                  introController.isActionLoading(IntroAction.coin) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: !isLoading
                   ? NumUtils.numFormat(videoDetail.stat!.coin)
                   : null,
@@ -580,6 +595,9 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
               ),
               selectStatus: introController.hasFav.value,
               semanticsLabel: '收藏',
+              isLoading:
+                  introController.isActionLoading(IntroAction.favorite) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: !isLoading
                   ? NumUtils.numFormat(videoDetail.stat!.favorite)
                   : null,
@@ -589,10 +607,12 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
             () => ActionItem(
               icon: const Icon(FontAwesomeIcons.clock),
               selectIcon: const Icon(FontAwesomeIcons.solidClock),
-              onTap: () =>
-                  introController.handleAction(introController.viewLater),
+              onTap: introController.viewLater,
               selectStatus: introController.hasLater.value,
               semanticsLabel: '再看',
+              isLoading: introController.isActionLoading(
+                IntroAction.watchLater,
+              ),
               text: '再看',
             ),
           ),
@@ -669,24 +689,34 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
                               SmartDialog.dismiss();
 
                               if (!mounted) return;
-                              final confirmed = await showConfirmDialog(
-                                context: context,
-                                title: const Text('空降助手：搬运视频同步'),
-                                content: Text(
-                                  '${hasPortVideo ? "" : "是否将"}该视频${hasPortVideo ? "已" : ""}绑定到此YouTube视频($ytbId)',
-                                ),
-                              );
-                              if (!hasPortVideo && confirmed) {
-                                final res = await SponsorBlock.postPortVideo(
-                                  bvid: bvid,
-                                  cid: cid,
-                                  ytbId: ytbId,
-                                  videoDuration: (duration / 1000).round(),
+                              if (hasPortVideo) {
+                                await showConfirmDialog(
+                                  context: context,
+                                  title: const Text('空降助手：搬运视频同步'),
+                                  content: Text(
+                                    '该视频已绑定到此YouTube视频($ytbId)',
+                                  ),
                                 );
-                                SmartDialog.showToast(
-                                  '提交搬运视频${res.isSuccess ? "成功" : "失败: $res"}',
+                              } else {
+                                final confirmed = await showConfirmDialog(
+                                  context: context,
+                                  title: const Text('空降助手：搬运视频同步'),
+                                  content: Text(
+                                    '是否将该视频绑定到此YouTube视频($ytbId)',
+                                  ),
                                 );
-                                return;
+                                if (confirmed) {
+                                  final res = await SponsorBlock.postPortVideo(
+                                    bvid: bvid,
+                                    cid: cid,
+                                    ytbId: ytbId,
+                                    videoDuration: (duration / 1000).round(),
+                                  );
+                                  SmartDialog.showToast(
+                                    '提交搬运视频${res.isSuccess ? "成功" : "失败: $res"}',
+                                  );
+                                  return;
+                                }
                               }
                             }
                           }

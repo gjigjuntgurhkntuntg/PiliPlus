@@ -157,19 +157,21 @@ class PgcIntroController extends CommonIntroController {
   // （取消）点赞
   @override
   Future<void> actionLikeVideo() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final newVal = !hasLike.value;
-    final result = await VideoHttp.likeVideo(bvid: bvid, type: newVal);
-    if (result case Success(:final response)) {
-      SmartDialog.showToast(newVal ? response : '取消赞');
-      pgcItem.stat?.like += newVal ? 1 : -1;
-      hasLike.value = newVal;
-    } else {
-      result.toast();
-    }
+    await runWithActionLoading(IntroAction.like, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
+      }
+      final newVal = !hasLike.value;
+      final result = await VideoHttp.likeVideo(bvid: bvid, type: newVal);
+      if (result case Success(:final response)) {
+        SmartDialog.showToast(newVal ? response : '取消赞');
+        pgcItem.stat?.like += newVal ? 1 : -1;
+        hasLike.value = newVal;
+      } else {
+        result.toast();
+      }
+    });
   }
 
   @override
@@ -471,38 +473,44 @@ class PgcIntroController extends CommonIntroController {
 
   // 追番
   Future<void> pgcAdd() async {
-    final result = await VideoHttp.pgcAdd(seasonId: pgcItem.seasonId);
-    if (result case Success(:final response)) {
-      isFollowed.value = true;
-      followStatus.value = 2;
-      SmartDialog.showToast(response);
-    } else {
-      result.toast();
-    }
+    await runWithActionLoading(IntroAction.pgcFollow, () async {
+      final result = await VideoHttp.pgcAdd(seasonId: pgcItem.seasonId);
+      if (result case Success(:final response)) {
+        isFollowed.value = true;
+        followStatus.value = 2;
+        SmartDialog.showToast(response);
+      } else {
+        result.toast();
+      }
+    });
   }
 
   // 取消追番
   Future<void> pgcDel() async {
-    final result = await VideoHttp.pgcDel(seasonId: pgcItem.seasonId);
-    if (result case Success(:final response)) {
-      isFollowed.value = false;
-      SmartDialog.showToast(response);
-    } else {
-      result.toast();
-    }
+    await runWithActionLoading(IntroAction.pgcFollow, () async {
+      final result = await VideoHttp.pgcDel(seasonId: pgcItem.seasonId);
+      if (result case Success(:final response)) {
+        isFollowed.value = false;
+        SmartDialog.showToast(response);
+      } else {
+        result.toast();
+      }
+    });
   }
 
   Future<void> pgcUpdate(int status) async {
-    final result = await VideoHttp.pgcUpdate(
-      seasonId: pgcItem.seasonId.toString(),
-      status: status,
-    );
-    if (result case Success(:final response)) {
-      followStatus.value = status;
-      SmartDialog.showToast(response);
-    } else {
-      result.toast();
-    }
+    await runWithActionLoading(IntroAction.pgcFollow, () async {
+      final result = await VideoHttp.pgcUpdate(
+        seasonId: pgcItem.seasonId.toString(),
+        status: status,
+      );
+      if (result case Success(:final response)) {
+        followStatus.value = status;
+        SmartDialog.showToast(response);
+      } else {
+        result.toast();
+      }
+    });
   }
 
   @override
@@ -570,40 +578,42 @@ class PgcIntroController extends CommonIntroController {
   // 一键三连
   @override
   Future<void> actionTriple() async {
-    feedBack();
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    if (hasLike.value && hasCoin && hasFav.value) {
-      // 已点赞、投币、收藏
-      SmartDialog.showToast('已三连');
-      return;
-    }
-    final result = await VideoHttp.pgcTriple(epId: epId!, seasonId: seasonId);
-    if (result case Success(:final response)) {
-      late final stat = pgcItem.stat;
-      if (response.like == 1 && !hasLike.value) {
-        stat?.like++;
-        hasLike.value = true;
+    await runWithActionLoading(IntroAction.triple, () async {
+      feedBack();
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
       }
-      if (response.coin == 1 && !hasCoin) {
-        stat?.coin += 2;
-        coinNum.value = 2;
-        GlobalData().afterCoin(2);
+      if (hasLike.value && hasCoin && hasFav.value) {
+        // 已点赞、投币、收藏
+        SmartDialog.showToast('已三连');
+        return;
       }
-      if (response.favorite == 1 && !hasFav.value) {
-        stat?.favorite++;
-        hasFav.value = true;
-      }
-      if (!hasCoin) {
-        SmartDialog.showToast('投币失败');
+      final result = await VideoHttp.pgcTriple(epId: epId!, seasonId: seasonId);
+      if (result case Success(:final response)) {
+        late final stat = pgcItem.stat;
+        if (response.like == 1 && !hasLike.value) {
+          stat?.like++;
+          hasLike.value = true;
+        }
+        if (response.coin == 1 && !hasCoin) {
+          stat?.coin += 2;
+          coinNum.value = 2;
+          GlobalData().afterCoin(2);
+        }
+        if (response.favorite == 1 && !hasFav.value) {
+          stat?.favorite++;
+          hasFav.value = true;
+        }
+        if (!hasCoin) {
+          SmartDialog.showToast('投币失败');
+        } else {
+          SmartDialog.showToast('三连成功');
+        }
       } else {
-        SmartDialog.showToast('三连成功');
+        result.toast();
       }
-    } else {
-      result.toast();
-    }
+    });
   }
 
   Future<void> queryIsFollowed() async {
@@ -684,14 +694,16 @@ class PgcIntroController extends CommonIntroController {
   }
 
   Future<void> onFavPugv(bool isFav) async {
-    final res = isFav
-        ? await FavHttp.delFavPugv(seasonId!)
-        : await FavHttp.addFavPugv(seasonId!);
-    if (res.isSuccess) {
-      this.isFav.value = !isFav;
-      SmartDialog.showToast('${isFav ? '取消' : ''}收藏成功');
-    } else {
-      res.toast();
-    }
+    await runWithActionLoading(IntroAction.pugvFavorite, () async {
+      final res = isFav
+          ? await FavHttp.delFavPugv(seasonId!)
+          : await FavHttp.addFavPugv(seasonId!);
+      if (res.isSuccess) {
+        this.isFav.value = !isFav;
+        SmartDialog.showToast('${isFav ? '取消' : ''}收藏成功');
+      } else {
+        res.toast();
+      }
+    });
   }
 }

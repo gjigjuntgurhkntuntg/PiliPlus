@@ -6,10 +6,12 @@ import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
+import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/widgets/pgc_panel.dart';
@@ -184,11 +186,15 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
             bottom: 6,
             child: Obx(() {
               final isFav = introController.isFav.value;
+              final isLoading = introController.isActionLoading(
+                IntroAction.pugvFavorite,
+              );
               return iconButton(
                 size: 28,
                 iconSize: 26,
                 tooltip: '${isFav ? '取消' : ''}收藏',
                 onPressed: () => introController.onFavPugv(isFav),
+                isLoading: isLoading,
                 icon: isFav
                     ? const Icon(Icons.star_rounded)
                     : const Icon(Icons.star_border_rounded),
@@ -215,6 +221,9 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
         () {
           final isFollowed = introController.isFollowed.value;
           final followStatus = introController.followStatus.value;
+          final isLoading = introController.isActionLoading(
+            IntroAction.pgcFollow,
+          );
           return FilledButton.tonal(
             style: FilledButton.styleFrom(
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -226,7 +235,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               foregroundColor: isFollowed ? colorScheme.outline : null,
               backgroundColor: isFollowed ? colorScheme.onInverseSurface : null,
             ),
-            onPressed: followStatus == -1
+            onPressed: isLoading || followStatus == -1
                 ? null
                 : () {
                     if (isFollowed) {
@@ -248,10 +257,13 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
                       introController.pgcAdd();
                     }
                   },
-            child: Text(
-              isFollowed
-                  ? '已${introController.pgcType}'
-                  : introController.pgcType,
+            child: LoadingButtonChild(
+              isLoading: isLoading,
+              child: Text(
+                isFollowed
+                    ? '已${introController.pgcType}'
+                    : introController.pgcType,
+              ),
             ),
           );
         },
@@ -415,6 +427,9 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
               selectStatus: introController.hasLike.value,
               semanticsLabel: '点赞',
+              isLoading:
+                  introController.isActionLoading(IntroAction.like) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(item.stat!.like),
               onStartTriple: introController.onStartTriple,
               onCancelTriple: introController.onCancelTriple,
@@ -428,6 +443,9 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               onTap: introController.actionCoinVideo,
               selectStatus: introController.hasCoin,
               semanticsLabel: '投币',
+              isLoading:
+                  introController.isActionLoading(IntroAction.coin) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(item.stat!.coin),
             ),
           ),
@@ -443,6 +461,9 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               ),
               selectStatus: introController.hasFav.value,
               semanticsLabel: '收藏',
+              isLoading:
+                  introController.isActionLoading(IntroAction.favorite) ||
+                  introController.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(item.stat!.favorite),
             ),
           ),
@@ -450,10 +471,12 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
             () => ActionItem(
               icon: const Icon(FontAwesomeIcons.clock),
               selectIcon: const Icon(FontAwesomeIcons.solidClock),
-              onTap: () =>
-                  introController.handleAction(introController.viewLater),
+              onTap: introController.viewLater,
               selectStatus: introController.hasLater.value,
               semanticsLabel: '再看',
+              isLoading: introController.isActionLoading(
+                IntroAction.watchLater,
+              ),
               text: '再看',
             ),
           ),

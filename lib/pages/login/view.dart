@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/dial_prefix.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
@@ -201,10 +202,17 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: _loginPageCtr.loginByCookie,
-          icon: const Icon(Icons.login),
-          label: const Text('登录'),
+        Obx(
+          () {
+            final loading = _loginPageCtr.isActionLoading(LoginAction.cookie);
+            return OutlinedButton.icon(
+              onPressed: loading ? null : _loginPageCtr.loginByCookie,
+              icon: loading
+                  ? buttonLoadingIndicator(size: 18)
+                  : const Icon(Icons.login),
+              label: const Text('登录'),
+            );
+          },
         ),
       ],
     );
@@ -333,10 +341,17 @@ class _LoginPageState extends State<LoginPage> {
             const SizedBox(width: 20),
           ],
         ),
-        OutlinedButton.icon(
-          onPressed: _loginPageCtr.loginByPassword,
-          icon: const Icon(Icons.login),
-          label: const Text('登录'),
+        Obx(
+          () {
+            final loading = _loginPageCtr.isActionLoading(LoginAction.password);
+            return OutlinedButton.icon(
+              onPressed: loading ? null : _loginPageCtr.loginByPassword,
+              icon: loading
+                  ? buttonLoadingIndicator(size: 18)
+                  : const Icon(Icons.login),
+              label: const Text('登录'),
+            );
+          },
         ),
         const SizedBox(height: 20),
         Padding(
@@ -484,10 +499,17 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         const SizedBox(height: 20),
-        OutlinedButton.icon(
-          onPressed: _loginPageCtr.loginBySmsCode,
-          icon: const Icon(Icons.login),
-          label: const Text('登录'),
+        Obx(
+          () {
+            final loading = _loginPageCtr.isActionLoading(LoginAction.sms);
+            return OutlinedButton.icon(
+              onPressed: loading ? null : _loginPageCtr.loginBySmsCode,
+              icon: loading
+                  ? buttonLoadingIndicator(size: 18)
+                  : const Icon(Icons.login),
+              label: const Text('登录'),
+            );
+          },
         ),
         const SizedBox(height: 20),
         Padding(

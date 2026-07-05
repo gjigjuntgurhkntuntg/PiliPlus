@@ -248,91 +248,97 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
   // 一键三连
   @override
   Future<void> actionTriple() async {
-    feedBack();
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    if (hasLike.value && hasCoin && hasFav.value) {
-      // 已点赞、投币、收藏
-      SmartDialog.showToast('已三连');
-      return;
-    }
-    final result = await VideoHttp.ugcTriple(bvid: bvid);
-    if (result case Success(:final response)) {
-      late final stat = videoDetail.value.stat;
-      if (response.like == true && !hasLike.value) {
-        stat?.like++;
-        hasLike.value = true;
+    await runWithActionLoading(IntroAction.triple, () async {
+      feedBack();
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
       }
-      if (response.coin == true && !hasCoin) {
-        stat?.coin += 2;
-        coinNum.value = 2;
-        GlobalData().afterCoin(2);
+      if (hasLike.value && hasCoin && hasFav.value) {
+        // 已点赞、投币、收藏
+        SmartDialog.showToast('已三连');
+        return;
       }
-      if (response.fav == true && !hasFav.value) {
-        stat?.favorite++;
-        hasFav.value = true;
-      }
-      hasDislike.value = false;
-      if (!hasCoin) {
-        SmartDialog.showToast('投币失败');
+      final result = await VideoHttp.ugcTriple(bvid: bvid);
+      if (result case Success(:final response)) {
+        late final stat = videoDetail.value.stat;
+        if (response.like == true && !hasLike.value) {
+          stat?.like++;
+          hasLike.value = true;
+        }
+        if (response.coin == true && !hasCoin) {
+          stat?.coin += 2;
+          coinNum.value = 2;
+          GlobalData().afterCoin(2);
+        }
+        if (response.fav == true && !hasFav.value) {
+          stat?.favorite++;
+          hasFav.value = true;
+        }
+        hasDislike.value = false;
+        if (!hasCoin) {
+          SmartDialog.showToast('投币失败');
+        } else {
+          SmartDialog.showToast('三连成功');
+        }
       } else {
-        SmartDialog.showToast('三连成功');
+        result.toast();
       }
-    } else {
-      result.toast();
-    }
+    });
   }
 
   // （取消）点赞
   @override
   Future<void> actionLikeVideo() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    if (videoDetail.value.stat == null) {
-      return;
-    }
-    final newVal = !hasLike.value;
-    final result = await VideoHttp.likeVideo(bvid: bvid, type: newVal);
-    if (result case Success(:final response)) {
-      SmartDialog.showToast(newVal ? response : '取消赞');
-      videoDetail.value.stat?.like += newVal ? 1 : -1;
-      hasLike.value = newVal;
-      if (newVal) {
-        hasDislike.value = false;
+    await runWithActionLoading(IntroAction.like, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
       }
-    } else {
-      result.toast();
-    }
+      if (videoDetail.value.stat == null) {
+        return;
+      }
+      final newVal = !hasLike.value;
+      final result = await VideoHttp.likeVideo(bvid: bvid, type: newVal);
+      if (result case Success(:final response)) {
+        SmartDialog.showToast(newVal ? response : '取消赞');
+        videoDetail.value.stat?.like += newVal ? 1 : -1;
+        hasLike.value = newVal;
+        if (newVal) {
+          hasDislike.value = false;
+        }
+      } else {
+        result.toast();
+      }
+    });
   }
 
   Future<void> actionDislikeVideo() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final res = await VideoHttp.dislikeVideo(
-      bvid: bvid,
-      type: !hasDislike.value,
-    );
-    if (res.isSuccess) {
-      if (!hasDislike.value) {
-        SmartDialog.showToast('点踩成功');
-        hasDislike.value = true;
-        if (hasLike.value) {
-          videoDetail.value.stat?.like--;
-          hasLike.value = false;
+    await runWithActionLoading(IntroAction.dislike, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
+      }
+      final res = await VideoHttp.dislikeVideo(
+        bvid: bvid,
+        type: !hasDislike.value,
+      );
+      if (res.isSuccess) {
+        if (!hasDislike.value) {
+          SmartDialog.showToast('点踩成功');
+          hasDislike.value = true;
+          if (hasLike.value) {
+            videoDetail.value.stat?.like--;
+            hasLike.value = false;
+          }
+        } else {
+          SmartDialog.showToast('取消踩');
+          hasDislike.value = false;
         }
       } else {
-        SmartDialog.showToast('取消踩');
-        hasDislike.value = false;
+        res.toast();
       }
-    } else {
-      res.toast();
-    }
+    });
   }
 
   @override
@@ -474,45 +480,52 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
   // 关注/取关up
   Future<void> actionRelationMod(BuildContext context) async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final videoDetail = this.videoDetail.value;
-    if (videoDetail.staff?.isNotEmpty == true) {
-      return;
-    }
-    int? mid = videoDetail.owner?.mid;
-    if (mid == null) {
-      return;
-    }
-    int attr = followStatus.value.attribute ?? 0;
-    if (attr == 128) {
-      final res = await VideoHttp.relationMod(
-        mid: mid,
-        act: 6,
-        reSrc: 11,
-      );
-      if (res.isSuccess) {
-        followStatus
-          ..value.attribute = 0
-          ..refresh();
+    await runWithActionLoading(IntroAction.relation, () async {
+      if (!isLogin) {
+        SmartDialog.showToast('账号未登录');
+        return;
       }
-      return;
-    } else {
-      RequestUtils.actionRelationMod(
-        context: context,
-        mid: mid,
-        isFollow: attr != 0,
-        followStatus: followStatus.value,
-        afterMod: (attribute) {
+      final videoDetail = this.videoDetail.value;
+      if (videoDetail.staff?.isNotEmpty == true) {
+        return;
+      }
+      int? mid = videoDetail.owner?.mid;
+      if (mid == null) {
+        return;
+      }
+      int attr = followStatus.value.attribute ?? 0;
+      if (attr == 128) {
+        final res = await VideoHttp.relationMod(
+          mid: mid,
+          act: 6,
+          reSrc: 11,
+        );
+        if (res.isSuccess) {
           followStatus
-            ..value.attribute = attribute
+            ..value.attribute = 0
             ..refresh();
-          Future.delayed(const Duration(milliseconds: 500), queryFollowStatus);
-        },
-      );
-    }
+        }
+        return;
+      } else {
+        await RequestUtils.actionRelationMod(
+          context: context,
+          mid: mid,
+          isFollow: attr != 0,
+          followStatus: followStatus.value,
+          requestLoading: (value) =>
+              setActionLoading(IntroAction.relation, value),
+          afterMod: (attribute) {
+            followStatus
+              ..value.attribute = attribute
+              ..refresh();
+            Future.delayed(
+              const Duration(milliseconds: 500),
+              queryFollowStatus,
+            );
+          },
+        );
+      }
+    });
   }
 
   Future<int> _resolveMediaListHistoryCid(

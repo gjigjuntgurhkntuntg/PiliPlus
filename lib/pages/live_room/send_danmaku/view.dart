@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/live.dart';
 import 'package:PiliPlus/models/common/publish_panel_type.dart';
@@ -134,14 +135,22 @@ class _ReplyPageState extends CommonRichTextPubPageState<LiveSendDmPanel> {
           children: [
             emojiBtn,
             Obx(
-              () => FilledButton.tonal(
-                onPressed: enablePublish.value ? onPublishThrottle : null,
-                style: FilledButton.styleFrom(
-                  visualDensity: .compact,
-                  padding: const .symmetric(horizontal: 20, vertical: 10),
-                ),
-                child: const Text('发送'),
-              ),
+              () {
+                final loading = isPublishing.value;
+                return FilledButton.tonal(
+                  onPressed: enablePublish.value && !loading
+                      ? onPublishThrottle
+                      : null,
+                  style: FilledButton.styleFrom(
+                    visualDensity: .compact,
+                    padding: const .symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  child: LoadingButtonChild(
+                    isLoading: loading,
+                    child: const Text('发送'),
+                  ),
+                );
+              },
             ),
           ],
         ),

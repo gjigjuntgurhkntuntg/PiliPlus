@@ -107,6 +107,7 @@ class _MemberPageState extends State<MemberPage> {
                         isOwner:
                             _userController.mid == _userController.account.mid,
                         relation: _userController.relation.value,
+                        isFollowLoading: _userController.relationLoading.value,
                         card: response.card!,
                         images: response.images!,
                         onFollow: () => _userController.onFollow(context),

@@ -2014,6 +2014,9 @@ class HeaderControlState extends State<HeaderControl>
                       selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
                       selectStatus: introController.hasLike.value,
                       semanticsLabel: '点赞',
+                      isLoading:
+                          introController.isActionLoading(IntroAction.like) ||
+                          introController.isActionLoading(IntroAction.triple),
                       animation: introController.tripleAnimation,
                       onStartTriple: () {
                         plPlayerController.tripling = true;
@@ -2042,9 +2045,10 @@ class HeaderControlState extends State<HeaderControl>
                         selectIcon: const Icon(
                           FontAwesomeIcons.solidThumbsDown,
                         ),
-                        onTap: () => ugc.handleAction(ugc.actionDislikeVideo),
+                        onTap: ugc.actionDislikeVideo,
                         selectStatus: ugc.hasDislike.value,
                         semanticsLabel: '点踩',
+                        isLoading: ugc.isActionLoading(IntroAction.dislike),
                       ),
                     ),
                   ),
@@ -2063,6 +2067,9 @@ class HeaderControlState extends State<HeaderControl>
                       onTap: introController.actionCoinVideo,
                       selectStatus: introController.hasCoin,
                       semanticsLabel: '投币',
+                      isLoading:
+                          introController.isActionLoading(IntroAction.coin) ||
+                          introController.isActionLoading(IntroAction.triple),
                     ),
                   ),
                 ),
@@ -2085,6 +2092,11 @@ class HeaderControlState extends State<HeaderControl>
                       ),
                       selectStatus: introController.hasFav.value,
                       semanticsLabel: '收藏',
+                      isLoading:
+                          introController.isActionLoading(
+                            IntroAction.favorite,
+                          ) ||
+                          introController.isActionLoading(IntroAction.triple),
                     ),
                   ),
                 ),
