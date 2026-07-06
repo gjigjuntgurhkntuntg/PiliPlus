@@ -19,6 +19,8 @@ import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:media_kit/media_kit.dart';
 
+enum BlockSkipSource { manual, automatic }
+
 mixin BlockConfigMixin {
   late final pgcSkipType = Pref.pgcSkipType;
   late final enablePgcSkip = pgcSkipType != SkipType.disable;
@@ -93,12 +95,20 @@ mixin BlockMixin on GetxController {
             if (msPos <= item.segment.$1 && item.segment.$1 <= msPos + 1000) {
               switch (item.skipType) {
                 case SkipType.alwaysSkip:
-                  onSkip(item, isSeek: false);
+                  onSkip(
+                    item,
+                    isSeek: false,
+                    skipSource: BlockSkipSource.automatic,
+                  );
                   break;
                 case SkipType.skipOnce:
                   if (!item.hasSkipped) {
                     item.hasSkipped = true;
-                    onSkip(item, isSeek: false);
+                    onSkip(
+                      item,
+                      isSeek: false,
+                      skipSource: BlockSkipSource.automatic,
+                    );
                   }
                   break;
                 case SkipType.skipManually:
@@ -152,11 +162,15 @@ mixin BlockMixin on GetxController {
                           if (player!.state.playing) {
                             future = onSkip(
                               segmentModel,
+                              skipSource: BlockSkipSource.automatic,
                             );
                           } else {
                             player!.stream.playing.firstWhere((e) {
                               if (e) {
-                                future = onSkip(segmentModel);
+                                future = onSkip(
+                                  segmentModel,
+                                  skipSource: BlockSkipSource.automatic,
+                                );
                                 return true;
                               }
                               return false;
@@ -240,7 +254,11 @@ mixin BlockMixin on GetxController {
     }
   }
 
-  Future<void>? seekTo(Duration duration, {required bool isSeek});
+  Future<void>? seekTo(
+    Duration duration, {
+    required bool isSeek,
+    BlockSkipSource skipSource = BlockSkipSource.manual,
+  });
 
   void _skipToast(SegmentModel item) {
     if (autoPlay && Pref.blockToast) {
@@ -255,11 +273,13 @@ mixin BlockMixin on GetxController {
     SegmentModel item, {
     bool isSkip = true,
     bool isSeek = true,
+    BlockSkipSource skipSource = BlockSkipSource.manual,
   }) async {
     try {
       await seekTo(
         Duration(milliseconds: item.segment.$2),
         isSeek: isSeek,
+        skipSource: skipSource,
       );
       if (isSkip) {
         _skipToast(item);

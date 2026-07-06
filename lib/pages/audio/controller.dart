@@ -66,6 +66,40 @@ import 'package:get/get.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path/path.dart' as path;
 
+class _CompletedPlaybackIdentity {
+  const _CompletedPlaybackIdentity({
+    required this.player,
+    required this.oid,
+    required this.subId,
+    required this.index,
+    required this.item,
+    required this.switchGeneration,
+  });
+
+  final Player player;
+  final int oid;
+  final Int64? subId;
+  final int? index;
+  final DetailItem? item;
+  final int switchGeneration;
+}
+
+class _AutoTailSkipCandidate {
+  const _AutoTailSkipCandidate({
+    required this.identity,
+    required this.gateGeneration,
+    required this.target,
+    required this.duration,
+    required this.remaining,
+  });
+
+  final _CompletedPlaybackIdentity identity;
+  final int gateGeneration;
+  final Duration target;
+  final Duration duration;
+  final Duration remaining;
+}
+
 class AudioController extends GetxController
     with
         GetTickerProviderStateMixin,
@@ -143,6 +177,8 @@ class AudioController extends GetxController
   Timer? _pendingNearTailPauseTimer;
   int _completedGateGeneration = 0;
   bool _pendingCompleted = false;
+  _AutoTailSkipCandidate? _autoTailSkipCandidate;
+  _CompletedPlaybackIdentity? _consumedCompletedIdentity;
   bool _manualPausePending = false;
   int _heartDuration = 0;
   bool _completedHeartBeatSynced = false;
@@ -285,7 +321,7 @@ class AudioController extends GetxController
   }
 
   Future<void>? onPause() {
-    _cancelPendingCompleted(reason: 'pause');
+    _cancelPendingCompleted(reason: 'pause', clearConsumed: false);
     _manualPausePending = true;
     final currentPlayer = player;
     if (currentPlayer == null) {
@@ -296,12 +332,22 @@ class AudioController extends GetxController
   }
 
   Future<void>? onSeek(Duration duration) {
+    return _seekToAudio(duration);
+  }
+
+  Future<void>? _seekToAudio(
+    Duration duration, {
+    BlockSkipSource skipSource = BlockSkipSource.manual,
+  }) {
     _audioSwitchZeroPositionGuardGeneration = null;
     _cancelPendingCompleted(reason: 'seek');
     _heartDuration = duration.inSeconds;
     _completedHeartBeatSynced = false;
     if (_pendingSwitchProtection && !_isSwitchingAudio) {
       unawaited(_finishSwitchProtection(success: false, reason: 'seek'));
+    }
+    if (skipSource == BlockSkipSource.automatic) {
+      _recordAutoTailSkipCandidate(duration);
     }
     return player?.seek(duration);
   }
@@ -390,10 +436,37 @@ class AudioController extends GetxController
     }
   }
 
-  void _cancelPendingCompleted({required String reason}) {
-    // Any playback identity change invalidates both the completed callback and
-    // the temporary near-tail pause suppression timer.
-    _completedGateGeneration += 1;
+  _CompletedPlaybackIdentity? _currentCompletedPlaybackIdentity([
+    Player? currentPlayer,
+  ]) {
+    final resolvedPlayer = currentPlayer ?? player;
+    if (resolvedPlayer == null) {
+      return null;
+    }
+    return _CompletedPlaybackIdentity(
+      player: resolvedPlayer,
+      oid: oid.toInt(),
+      subId: subId.firstOrNull,
+      index: index,
+      item: audioItem.value,
+      switchGeneration: _switchGeneration,
+    );
+  }
+
+  Map<String, dynamic> _identityExtra(_CompletedPlaybackIdentity identity) => {
+    'oid': identity.oid,
+    'subId': identity.subId?.toString(),
+    'index': identity.index,
+    'switchGeneration': identity.switchGeneration,
+  };
+
+  void _cancelCompletedGate({
+    required String reason,
+    bool advanceGeneration = true,
+  }) {
+    if (advanceGeneration) {
+      _completedGateGeneration += 1;
+    }
     _pendingCompleted = false;
     final hadPending = _completedGateScheduler.cancel();
     final hadPendingPause = _pendingNearTailPauseTimer != null;
@@ -407,6 +480,7 @@ class AudioController extends GetxController
         'cancel pending completed',
         extra: {
           'reason': reason,
+          'advanceGeneration': advanceGeneration,
           'oid': oid.toString(),
           'subId': subId.firstOrNull?.toString(),
         },
@@ -414,23 +488,163 @@ class AudioController extends GetxController
     }
   }
 
-  bool _isSameCompletedPlayback({
+  void _cancelPendingCompleted({
+    required String reason,
+    bool clearConsumed = true,
+  }) {
+    _cancelCompletedGate(reason: reason);
+    _clearAutoTailSkipCandidate(reason: reason);
+    if (clearConsumed) {
+      _clearConsumedCompletedIdentity(reason: reason);
+    }
+  }
+
+  void _clearAutoTailSkipCandidate({required String reason}) {
+    final candidate = _autoTailSkipCandidate;
+    if (candidate == null) {
+      return;
+    }
+    _autoTailSkipCandidate = null;
+    DebugLogService.log(
+      'audio.completed',
+      'clear auto tail skip candidate',
+      extra: {
+        'reason': reason,
+        ..._identityExtra(candidate.identity),
+        'targetMs': candidate.target.inMilliseconds,
+        'remainingMs': candidate.remaining.inMilliseconds,
+      },
+    );
+  }
+
+  void _clearConsumedCompletedIdentity({required String reason}) {
+    final identity = _consumedCompletedIdentity;
+    if (identity == null) {
+      return;
+    }
+    _consumedCompletedIdentity = null;
+    DebugLogService.log(
+      'audio.completed',
+      'clear consumed completed marker',
+      extra: {
+        'reason': reason,
+        ..._identityExtra(identity),
+      },
+    );
+  }
+
+  void _markCompletedConsumed(
+    _CompletedPlaybackIdentity identity, {
+    required String source,
+  }) {
+    _consumedCompletedIdentity = identity;
+    DebugLogService.log(
+      'audio.completed',
+      'mark completed consumed',
+      extra: {
+        'source': source,
+        ..._identityExtra(identity),
+      },
+    );
+  }
+
+  bool _isSamePlaybackIdentity({
     required Player currentPlayer,
-    required int switchGeneration,
-    required int currentOid,
-    required Int64? currentSubId,
-    required int? currentIndex,
-    required DetailItem? currentItem,
+    required _CompletedPlaybackIdentity identity,
   }) {
     return !isClosed &&
         !_isSwitchingAudio &&
-        _switchGeneration == switchGeneration &&
+        identity.switchGeneration == _switchGeneration &&
         identical(player, currentPlayer) &&
-        oid.toInt() == currentOid &&
-        subId.firstOrNull == currentSubId &&
-        index == currentIndex &&
-        identical(audioItem.value, currentItem) &&
+        identical(identity.player, currentPlayer) &&
+        oid.toInt() == identity.oid &&
+        subId.firstOrNull == identity.subId &&
+        index == identity.index &&
+        identical(audioItem.value, identity.item);
+  }
+
+  bool _isSameCompletedPlayback({
+    required Player currentPlayer,
+    required _CompletedPlaybackIdentity identity,
+  }) {
+    return _isSamePlaybackIdentity(
+          currentPlayer: currentPlayer,
+          identity: identity,
+        ) &&
         currentPlayer.state.completed;
+  }
+
+  bool _isConsumedCompletedPlayback(Player currentPlayer) {
+    final identity = _consumedCompletedIdentity;
+    return identity != null &&
+        _isSamePlaybackIdentity(
+          currentPlayer: currentPlayer,
+          identity: identity,
+        );
+  }
+
+  bool _isSameAutoTailSkipCandidate({
+    required _AutoTailSkipCandidate candidate,
+    required Player currentPlayer,
+  }) {
+    return _isSamePlaybackIdentity(
+      currentPlayer: currentPlayer,
+      identity: candidate.identity,
+    );
+  }
+
+  void _recordAutoTailSkipCandidate(Duration target) {
+    final currentPlayer = player;
+    final identity = _currentCompletedPlaybackIdentity(currentPlayer);
+    if (currentPlayer == null || identity == null) {
+      return;
+    }
+
+    final total = _rawAudioDuration(currentPlayer);
+    final remaining = CompletedGate.remaining(total: total, position: target);
+    if (remaining == null) {
+      DebugLogService.log(
+        'audio.completed',
+        'skip auto tail candidate',
+        extra: {
+          ..._identityExtra(identity),
+          'targetMs': target.inMilliseconds,
+          'durationMs': total.inMilliseconds,
+        },
+      );
+      return;
+    }
+
+    _autoTailSkipCandidate = _AutoTailSkipCandidate(
+      identity: identity,
+      gateGeneration: _completedGateGeneration,
+      target: target,
+      duration: total,
+      remaining: remaining,
+    );
+    DebugLogService.log(
+      'audio.completed',
+      'record auto tail skip candidate',
+      extra: {
+        ..._identityExtra(identity),
+        'gateGeneration': _completedGateGeneration,
+        'targetMs': target.inMilliseconds,
+        'durationMs': total.inMilliseconds,
+        'remainingMs': remaining.inMilliseconds,
+      },
+    );
+  }
+
+  bool _isValidAutoTailSkipCandidate({
+    required _AutoTailSkipCandidate candidate,
+    required Player currentPlayer,
+  }) {
+    return candidate.gateGeneration == _completedGateGeneration &&
+        _isSameAutoTailSkipCandidate(
+          candidate: candidate,
+          currentPlayer: currentPlayer,
+        ) &&
+        _completedRemaining(currentPlayer) != null;
   }
 
   Duration _rawAudioPosition(Player currentPlayer) {
@@ -579,10 +793,89 @@ class AudioController extends GetxController
     videoPlayerServiceHandler?.onPositionChange(completedDuration);
   }
 
+  void _scheduleAutoTailSkipCompleted({
+    required _AutoTailSkipCandidate candidate,
+    required Duration remaining,
+  }) {
+    final identity = candidate.identity;
+    _pendingNearTailPauseTimer?.cancel();
+    _pendingNearTailPauseTimer = null;
+    _pendingCompleted = true;
+    final completedGateGeneration = ++_completedGateGeneration;
+    _autoTailSkipCandidate = _AutoTailSkipCandidate(
+      identity: identity,
+      gateGeneration: completedGateGeneration,
+      target: candidate.target,
+      duration: candidate.duration,
+      remaining: candidate.remaining,
+    );
+    final tailDelay = CompletedGate.isReady(remaining)
+        ? Duration.zero
+        : CompletedGate.tailPlaybackWait(remaining, playbackRate: speed);
+    if (_isInBackground && _hasNextSwitchTarget) {
+      unawaited(
+        _ensureSwitchProtection(
+          reason: 'completed_gate',
+          text: '正在准备下一条音频…',
+        ),
+      );
+    }
+    DebugLogService.log(
+      'audio.completed',
+      'schedule auto tail skip completed gate',
+      extra: {
+        ..._identityExtra(identity),
+        'delayMs': tailDelay.inMilliseconds,
+        'remainingMs': remaining.inMilliseconds,
+        'candidateRemainingMs': candidate.remaining.inMilliseconds,
+        'targetMs': candidate.target.inMilliseconds,
+        'durationMs': candidate.duration.inMilliseconds,
+        'gateGeneration': completedGateGeneration,
+      },
+    );
+
+    bool isSamePlayback(Player? currentPlayer) =>
+        completedGateGeneration == _completedGateGeneration &&
+        currentPlayer != null &&
+        _isSamePlaybackIdentity(
+          currentPlayer: currentPlayer,
+          identity: identity,
+        ) &&
+        _completedRemaining(currentPlayer) != null;
+
+    _completedGateScheduler.schedule(tailDelay, () {
+      final currentPlayer = player;
+      if (!isSamePlayback(currentPlayer)) {
+        return;
+      }
+
+      _syncCompletedPlaybackPosition(currentPlayer!);
+      DebugLogService.log(
+        'audio.completed',
+        'settle auto tail skip completed position',
+        extra: {
+          ..._identityExtra(identity),
+          'gateGeneration': completedGateGeneration,
+        },
+      );
+      _completedGateScheduler.schedule(CompletedGate.buffer, () {
+        final currentPlayer = player;
+        if (!isSamePlayback(currentPlayer)) {
+          return;
+        }
+
+        _pendingCompleted = false;
+        _clearAutoTailSkipCandidate(reason: 'auto_tail_skip_consumed');
+        _markCompletedConsumed(identity, source: 'auto_tail_skip');
+        _consumePlaybackCompleted();
+      });
+    });
+  }
+
   void _handlePlayingChanged(bool playing) {
     if (playing) {
       _manualPausePending = false;
-      _cancelPendingCompleted(reason: 'playing');
+      _cancelCompletedGate(reason: 'playing', advanceGeneration: false);
       _publishPlaybackStatus(PlayerStatus.playing);
       _unawaitedHeartBeat(_reportStatusHeartBeat());
       if (_pendingSwitchProtection) {
@@ -602,6 +895,43 @@ class AudioController extends GetxController
     final remaining = currentPlayer == null
         ? null
         : _completedRemaining(currentPlayer);
+    final candidate = _autoTailSkipCandidate;
+    if (candidate != null) {
+      if (currentPlayer == null ||
+          !_isSameAutoTailSkipCandidate(
+            candidate: candidate,
+            currentPlayer: currentPlayer,
+          )) {
+        _clearAutoTailSkipCandidate(reason: 'auto_tail_candidate_invalid');
+      } else if (!isManualPause && !_isSwitchingAudio && remaining != null) {
+        if (_isValidAutoTailSkipCandidate(
+          candidate: candidate,
+          currentPlayer: currentPlayer,
+        )) {
+          _scheduleAutoTailSkipCompleted(
+            candidate: candidate,
+            remaining: remaining,
+          );
+          return;
+        }
+        _clearAutoTailSkipCandidate(reason: 'auto_tail_candidate_stale');
+      } else if (!isManualPause && !_isSwitchingAudio) {
+        DebugLogService.log(
+          'audio.completed',
+          'keep auto tail skip candidate',
+          extra: {
+            'reason': 'playing_false_not_near_tail',
+            ..._identityExtra(candidate.identity),
+            'targetMs': candidate.target.inMilliseconds,
+            'remainingMs': candidate.remaining.inMilliseconds,
+            'positionMs': currentPlayer.state.position.inMilliseconds,
+            'durationMs': _rawAudioDuration(currentPlayer).inMilliseconds,
+            'gateGeneration': _completedGateGeneration,
+            'candidateGateGeneration': candidate.gateGeneration,
+          },
+        );
+      }
+    }
     if (!isManualPause && !_isSwitchingAudio && remaining != null) {
       // Near the tail media_kit can flip playing=false before the final second
       // is visible. Hold the paused status unless completed is canceled.
@@ -1625,6 +1955,17 @@ class AudioController extends GetxController
     if (currentPlayer == null) {
       return;
     }
+    if (_isConsumedCompletedPlayback(currentPlayer)) {
+      DebugLogService.log(
+        'audio.completed',
+        'drop consumed completed signal',
+        extra: {
+          'oid': oid.toString(),
+          'subId': subId.firstOrNull?.toString(),
+        },
+      );
+      return;
+    }
 
     final stateDuration = _rawAudioDuration(currentPlayer);
     final stateRemaining = CompletedGate.remaining(
@@ -1652,11 +1993,11 @@ class AudioController extends GetxController
       return;
     }
 
-    final completedOid = oid.toInt();
-    final completedSubId = subId.firstOrNull;
-    final completedIndex = index;
-    final completedItem = audioItem.value;
-    final completedSwitchGeneration = _switchGeneration;
+    final completedIdentity = _currentCompletedPlaybackIdentity(currentPlayer);
+    if (completedIdentity == null) {
+      return;
+    }
+    _clearAutoTailSkipCandidate(reason: 'completed_signal');
 
     // 即使 remaining 为 0，也统一进入调度器，确保回调前还能校验播放身份和切换代次。
     _pendingNearTailPauseTimer?.cancel();
@@ -1685,7 +2026,7 @@ class AudioController extends GetxController
         'stateRemainingMs': stateRemaining?.inMilliseconds,
         'visibleRemainingMs': visibleRemaining?.inMilliseconds,
         'gateGeneration': completedGateGeneration,
-        'switchGeneration': completedSwitchGeneration,
+        'switchGeneration': completedIdentity.switchGeneration,
         'playMode': playMode.value.name,
       },
     );
@@ -1697,11 +2038,7 @@ class AudioController extends GetxController
         currentPlayer != null &&
         _isSameCompletedPlayback(
           currentPlayer: currentPlayer,
-          switchGeneration: completedSwitchGeneration,
-          currentOid: completedOid,
-          currentSubId: completedSubId,
-          currentIndex: completedIndex,
-          currentItem: completedItem,
+          identity: completedIdentity,
         ) &&
         _completedRemaining(currentPlayer) != null;
 
@@ -1728,6 +2065,7 @@ class AudioController extends GetxController
         }
 
         _pendingCompleted = false;
+        _markCompletedConsumed(completedIdentity, source: 'completed_signal');
         _consumePlaybackCompleted();
       });
     });
@@ -2585,8 +2923,11 @@ class AudioController extends GetxController
   int? get timeLength => player?.state.duration.inMilliseconds ?? 0;
 
   @override
-  Future<void>? seekTo(Duration duration, {required bool isSeek}) =>
-      onSeek(duration);
+  Future<void>? seekTo(
+    Duration duration, {
+    required bool isSeek,
+    BlockSkipSource skipSource = BlockSkipSource.manual,
+  }) => _seekToAudio(duration, skipSource: skipSource);
 
   @override
   bool get autoPlay => true;
