@@ -723,9 +723,7 @@ class _AudioPageState extends State<AudioPage> {
               ),
               selectStatus: _controller.hasFav.value,
               semanticsLabel: '收藏',
-              isLoading:
-                  _controller.isActionLoading(IntroAction.favorite) ||
-                  _controller.isActionLoading(IntroAction.triple),
+              isLoading: _controller.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(
                 audioItem.stat.favourite,
               ),

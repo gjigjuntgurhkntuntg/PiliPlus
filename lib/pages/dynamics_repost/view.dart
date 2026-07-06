@@ -1,7 +1,6 @@
 import 'package:PiliPlus/common/widgets/flutter/draggable_scrollable_sheet.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/publish_panel_type.dart';
@@ -277,10 +276,7 @@ class _RepostPanelState extends CommonRichTextPubPageState<RepostPanel> {
                   ),
                   visualDensity: VisualDensity.compact,
                 ),
-                child: LoadingButtonChild(
-                  isLoading: isPublishing.value,
-                  child: Text(widget.rid != null ? '立即发布' : '立即转发'),
-                ),
+                child: Text(widget.rid != null ? '立即发布' : '立即转发'),
               ),
             ),
             const SizedBox(width: 16),
@@ -336,10 +332,7 @@ class _RepostPanelState extends CommonRichTextPubPageState<RepostPanel> {
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
-                    child: LoadingButtonChild(
-                      isLoading: isPublishing.value,
-                      child: Text(widget.rid != null ? '发布' : '转发'),
-                    ),
+                    child: Text(widget.rid != null ? '发布' : '转发'),
                   ),
                 ),
               ),

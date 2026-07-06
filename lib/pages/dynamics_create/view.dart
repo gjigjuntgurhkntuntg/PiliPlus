@@ -7,7 +7,6 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/draggable_scrollable_sheet.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/button_loading.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/time_picker.dart';
 import 'package:PiliPlus/http/dynamics.dart';
@@ -375,10 +374,7 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
                   ),
                   visualDensity: VisualDensity.compact,
                 ),
-                child: LoadingButtonChild(
-                  isLoading: loading,
-                  child: Text(_publishTime.value == null ? '发布' : '定时发布'),
-                ),
+                child: Text(_publishTime.value == null ? '发布' : '定时发布'),
               );
             },
           ),

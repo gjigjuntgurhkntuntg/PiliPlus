@@ -461,9 +461,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               ),
               selectStatus: introController.hasFav.value,
               semanticsLabel: '收藏',
-              isLoading:
-                  introController.isActionLoading(IntroAction.favorite) ||
-                  introController.isActionLoading(IntroAction.triple),
+              isLoading: introController.isActionLoading(IntroAction.triple),
               text: NumUtils.numFormat(item.stat!.favorite),
             ),
           ),
