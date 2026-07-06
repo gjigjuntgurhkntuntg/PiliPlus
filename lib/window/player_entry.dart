@@ -16,6 +16,7 @@ import 'package:PiliPlus/services/multi_window/player_window_identity.dart';
 import 'package:PiliPlus/services/multi_window/window_arguments.dart';
 import 'package:PiliPlus/services/multi_window/player_window_service.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:collection/collection.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -790,17 +791,23 @@ class _PlayerEntryState extends State<PlayerEntry> with WindowListener {
           );
         }
 
+        final lightTheme = _buildThemeData(
+          colorScheme: lightColorScheme,
+          isDynamic: lightDynamic != null && _dynamicColor,
+        );
+        final darkTheme = _buildThemeData(
+          colorScheme: darkColorScheme,
+          isDynamic: darkDynamic != null && _dynamicColor,
+          isDark: true,
+        );
+        ThemeUtils.lightTheme = lightTheme;
+        ThemeUtils.darkTheme = darkTheme;
+        ThemeUtils.themeMode = _themeMode;
+
         return GetMaterialApp(
           title: '${Constants.appName} - 播放器',
-          theme: _buildThemeData(
-            colorScheme: lightColorScheme,
-            isDynamic: lightDynamic != null && _dynamicColor,
-          ),
-          darkTheme: _buildThemeData(
-            colorScheme: darkColorScheme,
-            isDynamic: darkDynamic != null && _dynamicColor,
-            isDark: true,
-          ),
+          theme: lightTheme,
+          darkTheme: darkTheme,
           themeMode: _themeMode,
           localizationsDelegates: const [
             GlobalCupertinoLocalizations.delegate,
