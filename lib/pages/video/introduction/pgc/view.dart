@@ -11,6 +11,7 @@ import 'package:PiliPlus/common/widgets/stat/stat.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
+import 'package:PiliPlus/models_new/pgc/pgc_info_model/stat.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
@@ -93,7 +94,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
             ),
             const SizedBox(height: 6),
             // 点赞收藏转发 布局样式2
-            if (introController.isPgc) actionGrid(item, introController),
+            if (introController.isPgc) actionGrid(item.stat!, introController),
             // 番剧分集
             if (item.episodes?.isNotEmpty == true)
               PgcPanel(
@@ -411,10 +412,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
     );
   }
 
-  Widget actionGrid(
-    PgcInfoModel item,
-    PgcIntroController introController,
-  ) {
+  Widget actionGrid(PgcStat stat, PgcIntroController introController) {
     return SizedBox(
       height: 48,
       child: Row(
@@ -430,7 +428,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               isLoading:
                   introController.isActionLoading(IntroAction.like) ||
                   introController.isActionLoading(IntroAction.triple),
-              text: NumUtils.numFormat(item.stat!.like),
+              text: NumUtils.numFormat(stat.like),
               onStartTriple: introController.onStartTriple,
               onCancelTriple: introController.onCancelTriple,
             ),
@@ -446,7 +444,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               isLoading:
                   introController.isActionLoading(IntroAction.coin) ||
                   introController.isActionLoading(IntroAction.triple),
-              text: NumUtils.numFormat(item.stat!.coin),
+              text: NumUtils.numFormat(stat.coin),
             ),
           ),
           Obx(
@@ -462,7 +460,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               selectStatus: introController.hasFav.value,
               semanticsLabel: '收藏',
               isLoading: introController.isActionLoading(IntroAction.triple),
-              text: NumUtils.numFormat(item.stat!.favorite),
+              text: NumUtils.numFormat(stat.favorite),
             ),
           ),
           Obx(
@@ -483,7 +481,7 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
             onTap: () => introController.actionShareVideo(context),
             selectStatus: false,
             semanticsLabel: '转发',
-            text: NumUtils.numFormat(item.stat!.share),
+            text: NumUtils.numFormat(stat.share),
           ),
         ],
       ),

@@ -147,36 +147,13 @@ class _DynamicsTabPageState
                   ? SliverWaterfallFlow(
                       gridDelegate: dynGridDelegate,
                       delegate: SliverChildBuilderDelegate(
-                        (_, index) {
-                          if (index == response.length - 1) {
-                            controller.onLoadMore();
-                          }
-                          final item = response[index];
-                          return DynamicPanel(
-                            item: item,
-                            onRemove: (idStr) =>
-                                controller.onRemove(index, idStr),
-                            onBlock: () => controller.onBlock(index),
-                            onUnfold: () => controller.onUnfold(item, index),
-                          );
-                        },
+                        (_, index) => _itemBuilder(response, index),
                         childCount: response.length,
                       ),
                     )
                   : SliverList.builder(
-                      itemBuilder: (context, index) {
-                        if (index == response.length - 1) {
-                          controller.onLoadMore();
-                        }
-                        final item = response[index];
-                        return DynamicPanel(
-                          item: item,
-                          onRemove: (idStr) =>
-                              controller.onRemove(index, idStr),
-                          onBlock: () => controller.onBlock(index),
-                          onUnfold: () => controller.onUnfold(item, index),
-                        );
-                      },
+                      itemBuilder: (context, index) =>
+                          _itemBuilder(response, index),
                       itemCount: response.length,
                     )
             : HttpError(onReload: controller.onReload),
@@ -185,5 +162,18 @@ class _DynamicsTabPageState
         onReload: controller.onReload,
       ),
     };
+  }
+
+  Widget _itemBuilder(List<DynamicItemModel> list, int index) {
+    if (index == list.length - 1) {
+      controller.onLoadMore();
+    }
+    final item = list[index];
+    return DynamicPanel(
+      item: item,
+      onRemove: (idStr) => controller.onRemove(index, idStr),
+      onBlock: () => controller.onBlock(index),
+      onUnfold: () => controller.onUnfold(item, index),
+    );
   }
 }

@@ -129,7 +129,7 @@ List<SettingsModel> get videoSettings => [
     leading: const Icon(Icons.movie_creation_outlined),
     getSubtitle: () {
       final list = Pref.preferCodecs;
-      return '首选解码格式：${(list.isEmpty ? '第一个可用' : list.map((i) => i.name).join(","))}，请根据设备支持情况与需求调整';
+      return '首选解码格式：${list.isEmpty ? '第一个可用' : list.map((i) => i.name).join(",")}，请根据设备支持情况与需求调整';
     },
     onTap: _showCodecsDialog,
   ),
